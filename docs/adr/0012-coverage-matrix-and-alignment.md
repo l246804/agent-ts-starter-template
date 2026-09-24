@@ -3,7 +3,7 @@
 本条把"覆盖"从**人工判断**变成**可执行的断言**，并补上矩阵里最后一格：
 
 - **覆盖矩阵补全**：占位子包决策此前只有"两条分支各被跑过一次"（`backend-monorepo` 取 `yes`、`frontend-monorepo` 取 `no`），三个 monorepo arrangement × 两条分支的**乘积**没有跑满。现在补上三个 profile：`fullstack-monorepo-placeholder-no`、`backend-monorepo-placeholder-no`、`frontend-monorepo-placeholder-yes`，于是每个 arrangement 的两支都有一次完整运行；`--self-check` 也把这条要求变成断言（每个 guard 接受的 (形态, 布局) 至少一个 profile，每个 monorepo arrangement 的 `GUIDE_PLACEHOLDER` 两个答案都有 profile，每条发货行至少被一个 profile 选中）。
-- **逐条对齐（两个方向都是断言）**：`docs/constraints.md` 的编号项（`C1..C41`）与边界项（`B1..B27`）、加上仓库里的继承 ADR，构成**条目空间**；`e2e/coverage.mjs` 声明"每条 → 目标项目哪个文档的哪一节、哪一形态、哪段 marker"。`assert.mjs` 逐 profile 断言两件事：**无遗漏**（每条发货行的 marker 都在它声明的位置）与**无编造**（目标文档里的每条 bullet 都被某条发货行认领）。形态过滤（`when`）在**两个方向里**都生效，所以"按形态裁剪"是证明出来的，而不是假设的。
+- **逐条对齐（两个方向都是断言）**：`docs/constraints.md` 的编号项（`C1..C46`，写本文时为 `C1..C41`）与边界项（`B1..B27`）、加上仓库里的继承 ADR，构成**条目空间**；`e2e/coverage.mjs` 声明"每条 → 目标项目哪个文档的哪一节、哪一形态、哪段 marker"。`assert.mjs` 逐 profile 断言两件事：**无遗漏**（每条发货行的 marker 都在它声明的位置）与**无编造**（目标文档里的每条 bullet 都被某条发货行认领）。形态过滤（`when`）在**两个方向里**都生效，所以"按形态裁剪"是证明出来的，而不是假设的。
 - **全矩阵记录**：`bash e2e/matrix.sh` 顺序跑完 `e2e/profiles/` 里的每个 profile，`e2e/record.mjs` 用**运行自己的产物**（`result.env`、run log、产物 `docs/provenance.md`）重写 `docs/verification.md`；任一 profile 不是 `PASS`，命令就非零退出、记录照实写"not run / FAIL"。
 - **上游漂移清单**：`docs/upstream-drift.md` 逐面给出"钉住了什么 / 漂移先看哪个可观察量 / 跑什么能证明"，把 `GUIDE.md` 的 Further Notes 里那半句话落成可执行的入口。
 

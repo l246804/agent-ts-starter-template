@@ -2812,6 +2812,10 @@ alternative fails quietly.
 - A green result has to be meaningful: a `vp check` without type-aware linting checks no
   types, and a `vp test` with no test files proves nothing. Fix the configuration, not the
   expectation.
+- If a command this project needs fails because the environment blocks it — network, registry,
+  credentials, sandbox — retry it once, unchanged, with the narrowest escalation that unblocks it,
+  and say why. Never work around a failing test or a sandbox denial, and never retry blindly after
+  an operation that may have had side effects.
 
 ### Path aliases
 
@@ -3136,6 +3140,17 @@ cat >> AGENTS.md <<'AGENTS'
 
 - Write a guard only for a state that has actually been observed and whose failure is silent.
   "It might happen" is not a reason; a loud failure for a state that cannot occur is noise.
+
+### Documents and decisions
+
+- Every fact has one home: how to work goes in this file, why a choice was made goes in the ADRs,
+  what has already bitten goes in `docs/agent-notes.md`, and what was installed goes in
+  `docs/provenance.md`. Refer to a fact elsewhere by link, never by restating it — a copy drifts.
+- A decision record keeps the alternatives it beat: an ADR describes the shipped decision in the
+  present tense, is updated when the code moves, and is superseded by a new record that links
+  back — never rewritten into a different decision.
+- Anything that can drift — a version, an upstream default, a command's output — says what to
+  re-check when it moves. Without that sentence a stale fact reads like a current one.
 AGENTS
 
 # The closing line names the directory the convention actually resolved. It is printed here rather
@@ -3508,6 +3523,10 @@ echo "ok  $landed inherited ADRs installed in $adr_dir/ — $source"
 Facts about this project's stack, recorded because each one has already cost someone time.
 Rules live in `AGENTS.md`; the ADRs behind them live in the directory `docs/provenance.md`
 records — shipped text cannot name a path this run decides.
+
+Record a trap here only if it has actually been hit, its failure is silent, and rediscovering it
+would cost real time. Each entry says what happened and why the existing verification did not
+catch it; an entry that cannot answer that second question is a fact to delete, not a rule to add.
 
 ## Two engines, one green light
 
@@ -4041,6 +4060,17 @@ project. Read documentation for the versions above, not for \`latest\`.
 The skill names are resolved from the upstream manifest at initialization time rather than
 frozen in the guide, so an upstream rename or promotion is picked up instead of pinned.
 Installed content lives in \`.agents/skills/\`.
+
+## What to re-check when upstream moves
+
+Each fact below can go stale without anything going red, so this table is where a re-check starts.
+
+| Fact | Re-check by |
+| --- | --- |
+| \`vite-plus\` pin | \`vp --version\`; releases are prerelease-tagged, so read the release notes before \`vp migrate\` |
+| TypeScript pin | the resolved package version — not \`tsc --version\`, which a bridge reports as its own |
+| Installed skills | re-resolve the upstream plugin manifest and compare its name set with \`skills-lock.json\` |
+| Scaffold skeleton | \`create-vite\` cannot be pinned: a later re-run may produce a different skeleton, so diff before assuming |
 
 ## Steps executed
 

@@ -106,6 +106,7 @@ const AGENTS = {
     ["C4", "all", "Do not hand-write toolchain configuration"],
     ["C6", "all", "does **not** exist in a project-local setup"],
     ["C5", "all", "A green result has to be meaningful"],
+    ["C45", "all", "retry it once, unchanged, with the narrowest escalation"],
   ],
   "Path aliases": [
     ["C8", "all", "Import cross-directory modules as `#/…`"],
@@ -124,6 +125,12 @@ const AGENTS = {
   ],
   "Defensive code": [
     ["C39", "all", "Write a guard only for a state that has actually been observed"],
+  ],
+  "Documents and decisions": [
+    ["C42", "all", "Every fact has one home"],
+    ["ADR-0013", "all", "Every fact has one home"],
+    ["C43", "all", "keeps the alternatives it beat"],
+    ["C44", "all", "says what to re-check when it moves"],
     // The closing pointer follows the last section the guide appends, and it is the document that
     // names the resolved ADR landing point — the thing ADR-0011 decides.
     ["ADR-0011", "all", "See `docs/agent-notes.md` for the traps behind these rules", "prose"],
@@ -205,6 +212,7 @@ const AGENTS = {
 const NOTES = {
   "Agent notes — known traps and version facts": [
     ["ADR-0011", "all", "shipped text cannot name a path this run decides", "prose"],
+    ["C46", "all", "Record a trap here only if it has actually been hit", "prose"],
   ],
   "Two engines, one green light": [
     ["B24", "all", "type-checks with the TypeScript Go engine"],
