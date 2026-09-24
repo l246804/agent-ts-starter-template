@@ -9,8 +9,12 @@
  * A fenced code block whose info string contains a `guide:` token is a step:
  *
  *   ```bash guide:exec id=alias                       -> run this shell text verbatim
- *   ```markdown guide:file path=docs/adr/0001-x.md    -> write this text to that path
+ *   ```markdown guide:file path=docs/notes.md         -> write this text to that path
  *   ```bash guide:verify id=verify                    -> the assertion set; always last
+ *
+ * A file block's path is its final path; the inherited ADRs are the one deliberate exception,
+ * because where they land is decided at run time by the target project's own convention. They are
+ * staged under `.vite-plus-inherited-adrs/` and the guide's `adr-land` step installs them.
  *
  * Extra attributes:
  *   when=mode:frontend|backend        include the step only when GUIDE_MODE matches

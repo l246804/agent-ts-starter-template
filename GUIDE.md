@@ -98,6 +98,15 @@ exercise; `backend/monorepo` runs `yes` and `frontend/monorepo` runs `no`, so bo
 decision are run once each, in different profiles). Treat a green run in an unexercised branch as
 unproven until it has been run once.
 
+The setup decision point is run in both of its branches too: `frontend/single` takes `yes` — with a
+GitHub tracker and a convention whose ADR directory is not the default, which is what proves the
+landing point is read out of the project rather than hardcoded — and the other five profiles take
+`no`. The harness's setup controls run the remaining sub-answers once each in a scratch project: a
+`local` and then a `gitlab` tracker (which is also the skill's own tracker-switch re-run), the
+`multi` layout, and a convention that keeps the default `docs/adr/`. `GUIDE_TRACKER=other` is the one
+answer nothing runs and nothing can run: that file is the user's own description of their workflow,
+so the guard refuses it instead of inventing one.
+
 The phase skeleton below (preflight → decisions → initialize → skills → documents → verify →
 handoff) is the structure every profile fills in; the profile guard keeps unimplemented
 combinations from producing a half-built project.
@@ -109,8 +118,10 @@ combinations from producing a half-built project.
   shell, from the project root. Every block starts with `set -euo pipefail` and stops on the
   first failure.
 - A fenced block marked **`guide:file`** is a document to write **verbatim** to the given
-  path. The ADRs, the traps list, and the constraints section are shipped as text on purpose:
-  the wording is the deliverable, not something to improvise.
+  path. The traps list is shipped as text on purpose: the wording is the deliverable, not
+  something to improvise. The inherited ADRs are shipped the same way but into a **staging
+  directory** (`.vite-plus-inherited-adrs/`): where they *land* is this project's decision, read
+  from its own convention in Phase 5, so the path in their markers is not their final one.
 - A fenced block marked **`guide:verify`** is the verification step. It is the assertion set
   for the whole initialization: run it as-is, and treat a red result as a stop.
 - A step whose marker carries a **`when=…`** clause belongs to the answers it names and is skipped
@@ -130,7 +141,9 @@ The guide stops at five decision points: mode/layout/framework/package manager, 
 include the server foundation in the modes that have one), the dev-proxy target (`frontend` mode
 only, in both layouts — the split shape's target is its own workspace root server, so it is written
 rather than asked for), whether to keep the monorepo layout's placeholder package, and whether to
-run the skills setup now. Ask them, then record the answers as environment
+run the skills setup now — which is the one decision point whose *questions* are asked by a skill
+rather than by this guide, so its three answers are listed separately below. Ask them, then record
+the answers as environment
 variables; every step below fails loudly if an answer it needs is missing. That is also what makes
 an unattended run possible.
 
@@ -151,7 +164,10 @@ an unattended run possible.
 | `GUIDE_PROXY_SMOKE_PATH` | route the proxy smoke test calls — must exist on that backend (`frontend` mode) | e.g. `/hello` |
 | `GUIDE_DEV_PORT` | port the smoke tests use for the dev server; in the monorepo layouts whose root is a server, the port that server binds, and therefore the port the split shape's `DEV_PROXY` points at | default `5173`; `3000` in the monorepo layouts, where a root server keeps Nitro's default and an app takes 5173 |
 | `GUIDE_WEBSITE_PORT` | port the frontend app's dev server binds (monorepo layouts with an app: the split shape and `frontend` × `monorepo`) | default `5173` |
-| `GUIDE_SETUP` | run the skills setup now? | `no` in unattended runs (see Phase 4.5) |
+| `GUIDE_SETUP` | run the skills setup now? The user answers this one: the setup skill is user-invocable only (see Phase 4.5) | `no` when nobody is there to answer the skill's questions; `yes` when the user is running `/setup-matt-pocock-skills` |
+| `GUIDE_TRACKER` | issue tracker the setup flow settles — Section A of that skill | `github`, `gitlab`, `local` — its three seed templates; `other` is answered in the conversation and refused by the flow (its file is the user's own paragraph); read only when `GUIDE_SETUP=yes` |
+| `GUIDE_DOMAIN_LAYOUT` | domain-doc layout the setup flow settles — Section C | `single` (default: named without asking), `multi` (offered when the repo shows monorepo signals); read only when `GUIDE_SETUP=yes` |
+| `GUIDE_ADR_DIR` | the directory the confirmed domain-doc convention puts this repo's ADRs in — the landing point Phase 5 reads back out of that file | a project-relative directory; default `docs/adr`; read only when `GUIDE_SETUP=yes` |
 
 An answer that only one mode reads is only needed in that mode: the steps that read it are the
 same steps the mode gates, so a `backend` run never needs `GUIDE_DEV_PROXY` and a `frontend` run
@@ -166,6 +182,11 @@ The dev-proxy target is the one answer with a **default placeholder**. A fronten
 somebody else's, and it may not exist yet; leaving the default writes a proxy that answers `502`
 until it does — which is the loud half of "there is no backend there", never an HTML `200`. Say
 plainly what the placeholder is, and ask for the real address when it is known.
+
+The three setup answers are read by the `yes` branch of Phase 4.5 only; a run that declines setup
+never needs them, and a run that takes it needs `GUIDE_TRACKER` and may rely on the two defaults —
+the domain-doc layout the skill asks about (`single`), and the ADR directory the confirmed
+convention ends up naming (`docs/adr`).
 
 If the user has pre-answered everything, export the whole table and the run needs no further
 input.
@@ -789,7 +810,8 @@ A `backend` project has no client, so the one the generator just wrote is waste:
 and `index.html` go. What stays is the project itself — the project-local pinned toolchain, the
 `imports` alias map, the trimmed configuration, the refined ignore rules — and on top of it the
 server: Nitro v3 consumed as a Vite plugin, with `serverDir` pointing at `server/` in the project
-root. This is the composition ADR-0003 (in the generated project's `docs/adr/`) records, and it is
+root. This is the composition ADR-0003 (one of the inherited ADRs, which land where Phase 5 resolves
+this project's convention to) records, and it is
 Vite+-first on purpose: `vp create` built the project, Nitro was added to it, so there is no
 migration step and no second toolchain.
 
@@ -2367,32 +2389,272 @@ NODE
 
 ## Phase 4.5 — Decision point: run the skills setup now?
 
-After the skills are in place, ask whether to run the toolkit's setup skill for this project.
-Say what it will ask (issue tracker, triage labels, domain-document layout, agent brief), and
-say plainly why the user has to trigger it: that skill is marked user-invocable only, so the
-agent may execute its steps but cannot originate the request.
+The installed set has one skill that configures the project *for* the other skills:
+`/setup-matt-pocock-skills`. It is a prompt-driven conversation, not a script — it explores the
+repo, presents what it found, asks for confirmation, and only then writes — and it asks about:
+
+- the **issue tracker** — where issues and specs live for this project: GitHub (the `gh` CLI,
+  proposed when a remote points there), GitLab (`glab`), local markdown files under
+  `.scratch/<feature>/`, or a workflow the user describes in a paragraph (Jira, Linear, …);
+- the **triage label vocabulary** — keep the five canonical role names (`needs-triage`,
+  `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) or map them to names the
+  tracker already uses (asked only when the `triage` skill is installed, which the promoted set
+  is);
+- the **domain-doc layout** — single-context (one `CONTEXT.md` and one ADR directory at the repo
+  root: the default, recorded without asking) or multi-context (a root `CONTEXT-MAP.md` pointing
+  at one `CONTEXT.md` per context, with per-context ADR directories; offered only when the repo
+  shows monorepo signals);
+- the **agent brief** — the `## Agent skills` block it adds to the file the repo already has
+  (`CLAUDE.md` when it exists, otherwise `AGENTS.md`).
+
+**Only the user can start it.** That skill carries `disable-model-invocation: true`: a
+user-invocable skill is one an agent may *execute* once the user asks for it, and may not
+*originate* — an agent cannot decide on its own that this project should be configured, so it
+cannot take this branch by itself. So **ask the question, and say both of those things out loud**:
+what the skill will ask (the four items above) and why only the user can start it. The answer
+picks the branch.
 
 - **Yes** — the user runs `/setup-matt-pocock-skills`; the agent then follows that skill's own
-  flow (explore → present → confirm → write) and must not overwrite existing document
-  sections.
-- **No** — continue; the inherited ADRs land in `docs/adr/` (the default the setup skill would
-  otherwise negotiate), and the assumption is recorded in the provenance.
+  process: **explore** the repo (remote, `AGENTS.md`/`CLAUDE.md`, `CONTEXT.md`, existing `docs/`),
+  **present** what it found and what each section will say, **confirm** with the user — the user's
+  edits during confirmation, including the ADR directory the convention ends up naming, *are* the
+  decision — and **write** the files. It must not overwrite document sections that already exist:
+  the `## Agent skills` block is updated in place when the file has one and nothing above or below
+  it is rewritten. The `docs/agents/` files are the skill's generated output, so — as that skill's
+  own text says — a re-run regenerates them from its seeds; that is exactly why a hand patch to one
+  is lost, and why the trap that belongs with a tracker goes into the traps list instead.
+- **No** — continue. No convention is negotiated, so the inherited ADRs (Phase 5) take the
+  default landing point, `docs/adr/`, and the assumption is written into the birth certificate
+  (`docs/provenance.md`) rather than left implicit: a project that adopts a convention later has
+  to know those ADRs were placed by default, not by a decision.
 
-In an unattended run set `GUIDE_SETUP=no`; a `yes` there would ask a question that nobody is
-present to answer.
+The questions that skill asks map onto answers a run can carry in advance, which is what makes this
+decision point testable: `GUIDE_TRACKER` (Section A), `GUIDE_DOMAIN_LAYOUT` (Section C), and
+`GUIDE_ADR_DIR` — the ADR directory the confirmed convention ends up naming, which is Section C's
+output and the field a user edits during confirmation. The triage vocabulary is written as the
+canonical five; a non-default vocabulary is the user's own edit to the generated table (and, like
+every generated file here, that edit is regenerated from the skill's seed when the skill runs
+again). One answer is not pre-answerable: `other`, the tracker written from the user's own
+paragraph, needs the conversation itself — this flow refuses it rather than inventing a file. In an
+unattended run answer `no`, or answer `yes` with all three; a `yes` with a missing or unwritable
+answer stops at the guard below rather than guessing at it.
 
 ```bash guide:exec id=setup-guard
 set -euo pipefail
 : "${GUIDE_SETUP:?Phase 4.5 must answer GUIDE_SETUP}"
+
+# Both branches are checked before either one touches the project: a `no` is complete on its own,
+# and a `yes` is only runnable when the questions the skill would ask have answers — the user's
+# own, or the ones a pre-answered run supplied.
 case "$GUIDE_SETUP" in
-  no) echo "ok  setup deferred to the user; inherited ADRs use docs/adr/" ;;
+  no)
+    echo "ok  setup deferred to the user; the inherited ADRs take the default landing point and"
+    echo "ok  docs/provenance.md records that as an assumption rather than a decision"
+    ;;
   yes)
-    echo "GUIDE_SETUP=yes needs the user to invoke /setup-matt-pocock-skills; there is nobody to" >&2
-    echo "answer its prompts in an unattended run, and this revision does not automate that flow." >&2
-    exit 1
+    # Read with a default and required here: the answer only belongs to this branch, and the
+    # extractor's rule is that a `$GUIDE_…` without a default must be answered by every profile.
+    tracker=${GUIDE_TRACKER:-}
+    adr_dir=${GUIDE_ADR_DIR:-docs/adr}
+    adr_dir=${adr_dir%/}
+    domain_layout=${GUIDE_DOMAIN_LAYOUT:-single}
+    case "$tracker" in
+      github|gitlab|local) : ;;
+      "") echo "GUIDE_TRACKER must be answered when the setup flow runs: it is the issue tracker that flow settles (Phase 4.5)" >&2; exit 1 ;;
+      other)
+        echo "GUIDE_TRACKER=other cannot be written by this step: that file is written from the user's" >&2
+        echo "own description of their workflow, which comes from the setup skill's conversation and" >&2
+        echo "cannot be pre-answered. Run /setup-matt-pocock-skills attended, or answer github," >&2
+        echo "gitlab or local." >&2
+        exit 1
+        ;;
+      *) echo "GUIDE_TRACKER must be github, gitlab, local or other, got '$tracker'" >&2; exit 1 ;;
+    esac
+    case "$domain_layout" in
+      single|multi) : ;;
+      *) echo "GUIDE_DOMAIN_LAYOUT must be single or multi, got '$domain_layout'" >&2; exit 1 ;;
+    esac
+    case "$adr_dir" in
+      /*|*..*|"") echo "GUIDE_ADR_DIR must be a project-relative directory without '..', got '$adr_dir'" >&2; exit 1 ;;
+    esac
+    echo "ok  setup runs now: tracker=$tracker, domain docs=$domain_layout (ADRs in $adr_dir/)"
     ;;
   *) echo "GUIDE_SETUP must be yes or no, got '$GUIDE_SETUP'" >&2; exit 1 ;;
 esac
+```
+
+The agent does the skill's first half — explore, present, confirm — in the conversation, and this
+step does its second half, the write, from the answers that conversation settled. The files it
+writes are the skill's own seed templates, read out of the installed skill at run time, so a
+renamed or restructured upstream skill fails here loudly instead of drifting.
+
+```bash guide:exec id=setup-flow when=setup:yes
+set -euo pipefail
+: "${GUIDE_TRACKER:?Phase 4.5 must answer GUIDE_TRACKER when the setup flow runs}"
+adr_dir=${GUIDE_ADR_DIR:-docs/adr}
+adr_dir=${adr_dir%/}
+domain_layout=${GUIDE_DOMAIN_LAYOUT:-single}
+
+seeds=.agents/skills/setup-matt-pocock-skills
+[ -d "$seeds" ] || { echo "$seeds is not installed; Phase 4 installs the skill set" >&2; exit 1; }
+
+# Step 1 of the skill (explore), as the two facts this half of the flow needs: which file the
+# brief goes into — the skill's own selection rule, CLAUDE.md first — and whether the label
+# vocabulary is written at all (it is only written when the `triage` skill is installed).
+if [ -f CLAUDE.md ]; then brief=CLAUDE.md; else brief=AGENTS.md; fi
+[ -f "$brief" ] || {
+  echo "neither CLAUDE.md nor AGENTS.md exists; the skill asks the user which one to create," >&2
+  echo "and an unattended run cannot choose for them" >&2
+  exit 1
+}
+
+case "$GUIDE_TRACKER" in
+  github) tracker_seed=issue-tracker-github.md ;;
+  gitlab) tracker_seed=issue-tracker-gitlab.md ;;
+  local) tracker_seed=issue-tracker-local.md ;;
+  *) echo "GUIDE_TRACKER must be github, gitlab or local; Phase 4.5 refuses 'other' because that file is written from the user's own paragraph" >&2; exit 1 ;;
+esac
+[ -f "$seeds/$tracker_seed" ] || {
+  echo "the installed setup skill ships no $tracker_seed (upstream restructured the skill?)" >&2
+  exit 1
+}
+
+triage=no
+if [ -f .agents/skills/triage/SKILL.md ]; then triage=yes; fi
+
+# Steps 2 and 3 of the skill (present and confirm), said out loud instead of asked again: this run
+# already holds the answers the conversation would have produced.
+if [ "$triage" = yes ]; then
+  echo "setup: issue tracker = $GUIDE_TRACKER; triage labels = the canonical five; domain docs ="
+else
+  echo "setup: issue tracker = $GUIDE_TRACKER; no triage skill, so no label vocabulary; domain docs ="
+fi
+echo "setup: $domain_layout-context, ADRs in $adr_dir/; brief = $brief"
+
+# Step 4 (write). The convention and the brief are composed first — everything that can fail on a
+# seed's shape fails before the first project file is written — and the two files that are the
+# skill's seeds verbatim are installed after. Those two are generated output: the skill regenerates
+# them from its seeds (which is its own "re-run to switch issue trackers"), and a hand patch to one
+# is silently dropped, which is why the trap that belongs with a tracker goes into the traps list
+# (Phase 5, `notes-setup`) instead of into these files.
+node --input-type=module - <<'NODE'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+
+const tracker = process.env.GUIDE_TRACKER;
+// Read the way the shell reads them (`${VAR:-default}`): an empty answer is an absent one, and
+// `??` would take the empty string as a value and compose a convention with no directory at all.
+const layout = process.env.GUIDE_DOMAIN_LAYOUT || "single";
+const adrDir = (process.env.GUIDE_ADR_DIR || "docs/adr").replace(/\/+$/, "");
+const briefPath = existsSync("CLAUDE.md") ? "CLAUDE.md" : "AGENTS.md";
+const seedRoot = ".agents/skills/setup-matt-pocock-skills";
+const triageInstalled = existsSync(".agents/skills/triage/SKILL.md");
+
+function fail(message) {
+  console.error(`setup-flow: ${message}`);
+  process.exit(1);
+}
+
+mkdirSync("docs/agents", { recursive: true });
+
+// --- the convention file: the skill's seed, with this repo's confirmed layout and ADR directory ---
+const seed = readFileSync(`${seedRoot}/domain.md`, "utf8");
+if (!seed.includes("docs/adr/")) {
+  fail("the installed domain-doc seed no longer names docs/adr/, so the composition below needs re-reading");
+}
+const layoutLine =
+  layout === "multi"
+    ? "This repo is **multi-context**: a root `CONTEXT-MAP.md` points at one `CONTEXT.md` per context, and the repo's system-wide decisions live in the ADR directory below."
+    : "This repo is **single-context**: one `CONTEXT.md` at the repo root, and this repo's decisions in the ADR directory below.";
+const headingAt = seed.search(/\n## /);
+if (headingAt < 0) fail("the installed domain-doc seed has no sections to insert the layout into");
+const domain = seed.slice(0, headingAt) + `\n${layoutLine}\n` + seed.slice(headingAt).split("docs/adr/").join(`${adrDir}/`);
+const domainPath = "docs/agents/domain.md";
+const previous = existsSync(domainPath) ? readFileSync(domainPath, "utf8") : null;
+if (previous === domain) {
+  console.log(`ok  ${domainPath} already matches this run's answers; left as it is`);
+} else {
+  writeFileSync(domainPath, domain);
+  console.log(
+    previous === null
+      ? `ok  wrote ${domainPath} (the skill's seed, ${layout}-context, ADRs in ${adrDir}/)`
+      : `note: ${domainPath} existed and was regenerated from the skill's seed (${layout}-context, ADRs in ${adrDir}/)`,
+  );
+}
+
+// --- the brief -----------------------------------------------------------------------------
+const trackerSummary = {
+  github: "Issues and specs for this project live as GitHub issues; read and write them with the `gh` CLI.",
+  gitlab: "Issues and specs for this project live as GitLab issues; read and write them with the `glab` CLI.",
+  local: "Issues live as **local markdown** files under `.scratch/<feature>/` in this repo.",
+}[tracker];
+const sections = [
+  "## Agent skills",
+  "",
+  "### Issue tracker",
+  "",
+  `${trackerSummary} See \`docs/agents/issue-tracker.md\`.`,
+];
+if (triageInstalled) {
+  sections.push(
+    "",
+    "### Triage labels",
+    "",
+    "The five canonical triage roles map to labels of the same names. See `docs/agents/triage-labels.md`.",
+  );
+}
+sections.push(
+  "",
+  "### Domain docs",
+  "",
+  `${layout === "multi" ? "Multi-context" : "Single-context"}: this repo's decisions live in \`${adrDir}/\`. See \`docs/agents/domain.md\`.`,
+);
+const block = `${sections.join("\n")}\n`;
+
+// In place when the file already has the block, appended when it does not — and never a second
+// copy. Everything outside the block's own section is left exactly as it was.
+const brief = readFileSync(briefPath, "utf8");
+const existing = /^## Agent skills[ \t]*$/m.exec(brief);
+let next;
+if (!existing) {
+  next = `${brief.replace(/\n*$/, "\n")}\n${block}`;
+} else {
+  const before = brief.slice(0, existing.index);
+  const rest = brief.slice(existing.index + existing[0].length);
+  const nextHeading = /^## /m.exec(rest);
+  const after = nextHeading ? rest.slice(nextHeading.index) : "";
+  next = `${before}${block}${after ? `\n${after}` : ""}`;
+}
+if (!next.includes("<!--VITE PLUS START-->")) fail("the tool-owned block in the brief is gone; it is not this flow's to rewrite");
+if ((next.match(/^## Agent skills[ \t]*$/gm) ?? []).length !== 1) fail(`${briefPath} would end up with more than one ## Agent skills block`);
+writeFileSync(briefPath, next);
+
+console.log(`ok  the convention records ${layout}-context and ADRs in ${adrDir}/`);
+console.log(`ok  ${briefPath}: the ## Agent skills block is in place, and the rest of the file is untouched`);
+NODE
+
+# The two files that are the skill's seeds verbatim, byte for byte — written only once everything
+# above has succeeded, so a failure on a seed's shape leaves no half-written project behind.
+install_from_seed() {
+  if [ -e "$2" ] && cmp -s "$1" "$2"; then
+    echo "ok  $2 already matches the skill's seed; left as it is"
+    return 0
+  fi
+  if [ -e "$2" ]; then
+    echo "note: $2 existed; regenerated from the skill's seed (a hand patch to a generated file does not survive that)"
+  fi
+  cp "$1" "$2"
+  echo "ok  wrote $2 (the skill's seed)"
+}
+
+install_from_seed "$seeds/$tracker_seed" docs/agents/issue-tracker.md
+if [ "$triage" = yes ]; then
+  install_from_seed "$seeds/triage-labels.md" docs/agents/triage-labels.md
+fi
+
+grep -q '<!--VITE PLUS START-->' "$brief"
+grep -q '### Domain docs' "$brief"
+grep -q "docs/agents/domain.md" "$brief"
+echo "ok  the brief points at the convention file it wrote"
 ```
 
 ## Phase 5 — Documents: constraints, reasons, traps, provenance
@@ -2406,14 +2668,123 @@ Four documents, each with one job:
   the SSR shape the rendering ones on top, and each workspace arrangement the workspace rules plus
   its own (the proxy's, in the package that owns the dev server; the root-as-application rules,
   where the root is one). Nothing describes a package or a file this project does not have.
-- **`docs/adr/`** — why, and what would change the decision.
+- **the inherited ADRs** — why, and what would change the decision. They land in the directory this
+  project's own convention names (Phase 4.5 wrote that convention when the setup flow ran, and the
+  step below reads it back out); the guide's default, `docs/adr/`, applies when there is no
+  convention to read.
 - **`docs/agent-notes.md`** — what is already known to bite, as facts rather than rules, in the
   same shape: the traps every mode shares, plus the ones this mode's stack brings with it.
 - **`docs/provenance.md`** — what was actually installed and chosen, so a future anomaly can
   be attributed to a version instead of guessed at.
 
+The ADR landing point comes first, because the documents that point at it are written after it.
+
+```bash guide:exec id=adr-convention
+set -euo pipefail
+
+# Where the inherited ADRs land is the project's decision, not this guide's. The setup flow records
+# it in the convention file the project's own brief points at (`docs/agents/domain.md`), so this
+# step reads that file — the same way an agent reading the project would — and writes down what it
+# resolved. No convention (the setup flow was deferred, or the file names none) means the default,
+# and the deferred case is recorded in the birth certificate precisely because it is an assumption
+# rather than a decision.
+node --input-type=module - <<'NODE'
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
+function fail(message) {
+  console.error(`adr-convention: ${message}`);
+  process.exit(1);
+}
+
+// The convention file the project's own brief names. The brief is whichever of CLAUDE.md/AGENTS.md
+// the repo has, its `### Domain docs` section is where the file is named, and the setup flow's own
+// path is the fallback when nothing names one.
+function conventionFromBrief(brief) {
+  const lines = readFileSync(brief, "utf8").split("\n");
+  const at = lines.findIndex((line) => /^### Domain docs[ \t]*$/.test(line));
+  if (at < 0) return null;
+  const section = [];
+  for (let i = at + 1; i < lines.length; i += 1) {
+    if (/^#{1,3} /.test(lines[i])) break;
+    section.push(lines[i]);
+  }
+  const paths = (section.join("\n").match(/`[^`]+\.md`/g) ?? [])
+    .map((token) => token.slice(1, -1))
+    .filter((path) => path.includes("/"));
+  return paths.length ? paths[paths.length - 1] : null;
+}
+
+let convention = null;
+for (const brief of ["CLAUDE.md", "AGENTS.md"]) {
+  if (!existsSync(brief)) continue;
+  convention = conventionFromBrief(brief);
+  if (convention) break;
+}
+convention ??= "docs/agents/domain.md";
+
+// The convention shows this repo's layout as a directory tree, and the inherited (system-wide)
+// decisions belong in the directory that tree gives for the numbered NNNN-*.md files. A tree line
+// may carry an annotation after the path (`docs/adr/    ← system-wide decisions`) — the skill's own
+// seed writes multi-context exactly that way — so only the first token of a line is the name. The
+// directory holding the numbered files is the answer; a tree that shows the layout only as
+// annotations, with no files beneath, answers with the annotated directory instead.
+function adrDirFromConvention(text) {
+  const fence = /```[^\n]*\n([\s\S]*?)```/g;
+  let annotated = null;
+  for (const block of text.matchAll(fence)) {
+    const stack = [];
+    for (const raw of block[1].split("\n")) {
+      const match = /^([\s│├└─]*)(.*?)\s*$/.exec(raw);
+      const rest = match[2];
+      if (!rest) continue;
+      const name = rest.split(/\s+/)[0];
+      const annotation = rest.slice(name.length);
+      const level = Math.floor(match[1].length / 4);
+      while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+      const parent = stack.length ? stack[stack.length - 1].path : "";
+      if (name === "/") { stack.push({ level, path: "" }); continue; }
+      if (name.endsWith("/")) {
+        const path = `${parent}${name.slice(0, -1)}`;
+        stack.push({ level, path });
+        if (annotated === null && /[←#]|\s--/.test(annotation)) annotated = path;
+        continue;
+      }
+      if (/^\d{4}-.*\.md$/.test(name) && parent) return parent;
+    }
+  }
+  return annotated;
+}
+
+let dir = "docs/adr";
+let source = "the guide's default (no convention names one)";
+if (existsSync(convention)) {
+  const resolved = adrDirFromConvention(readFileSync(convention, "utf8"));
+  if (resolved) {
+    if (resolved.startsWith("/") || resolved.split("/").includes("..")) {
+      fail(`${convention} names ${resolved}, which is not a directory inside this project`);
+    }
+    dir = resolved.replace(/\/+$/, "");
+    source = `the project's convention, ${convention}`;
+  } else {
+    source = `the guide's default (${convention} names no ADR directory)`;
+  }
+} else {
+  source = `the guide's default (${convention} does not exist: the setup flow was deferred)`;
+}
+
+writeFileSync(".vite-plus-adr-dir", `${dir}\n`);
+writeFileSync(".vite-plus-adr-source", `${source}\n`);
+console.log(`ok  the inherited ADRs land in ${dir}/ — ${source}`);
+NODE
+```
+
 ```bash guide:exec id=agents-md
 set -euo pipefail
+
+# The landing point the convention resolved: the constraints' closing line points at it, and this
+# step runs before the ADRs are installed there.
+adr_dir=$(cat .vite-plus-adr-dir)
+[ -n "$adr_dir" ] || { echo "adr-convention resolved no landing point" >&2; exit 1; }
 
 # The constraints section is appended, never merged: the marked block above it belongs to the
 # tool and gets rewritten on upgrade, so anything written inside it would be silently lost.
@@ -2764,16 +3135,26 @@ cat >> AGENTS.md <<'AGENTS'
 
 - Write a guard only for a state that has actually been observed and whose failure is silent.
   "It might happen" is not a reason; a loud failure for a state that cannot occur is noise.
-
-See `docs/agent-notes.md` for the traps behind these rules, and `docs/adr/` for the reasoning.
 AGENTS
+
+# The closing line names the directory the convention actually resolved. It is printed here rather
+# than shipped inside the heredoc above because that path is not known until the convention has
+# been read, and a constraints document pointing at the wrong directory is worse than one pointing
+# at none.
+printf '\nSee `docs/agent-notes.md` for the traps behind these rules, and `%s/` for the reasoning.\n' "$adr_dir" >> AGENTS.md
 
 grep -q '<!--VITE PLUS START-->' AGENTS.md
 grep -q '## Project constraints' AGENTS.md
-echo "ok  constraints section appended, tool-owned block preserved"
+grep -qF "\`$adr_dir/\`" AGENTS.md
+echo "ok  constraints section appended, tool-owned block preserved, ADR directory named as $adr_dir/"
 ```
 
-```markdown guide:file path=docs/adr/0001-toolchain.md
+The inherited ADRs are shipped as text below, into a staging directory, because their landing
+point is the one `adr-convention` just resolved: `adr-land` installs them where that step said,
+and stops rather than overwriting a document that is already there — a file at that path is
+somebody's decision, not a place to write over.
+
+```markdown guide:file path=.vite-plus-inherited-adrs/0001-toolchain.md
 # The toolchain is project-local and pinned
 
 Every project generated by this guide carries its own Vite+ toolchain as a devDependency, with
@@ -2809,7 +3190,7 @@ today.
   deliberate type error, because a check that no longer type-checks reports success.
 ```
 
-```markdown guide:file path=docs/adr/0002-code-locality.md
+```markdown guide:file path=.vite-plus-inherited-adrs/0002-code-locality.md
 # Business code stays local; sharing has to earn its keep
 
 Business code is written where it is used: each page or feature owns its implementation. A
@@ -2842,7 +3223,7 @@ real examples exist, and a premature abstraction built from two examples is expe
   contracts, and server framework plumbing.
 ```
 
-```markdown guide:file path=docs/adr/0003-server-foundation.md when=mode:backend|fullstack
+```markdown guide:file path=.vite-plus-inherited-adrs/0003-server-foundation.md when=mode:backend|fullstack
 # Nitro v3 is the server foundation, even though v3 is prerelease
 
 Any server side in this project is built on Nitro v3 — the `nitro` package — consumed as a Vite
@@ -2887,7 +3268,7 @@ package with a different API and a different name.
   may be stored there.
 ```
 
-```markdown guide:file path=docs/adr/0004-ssr-shape.md when=mode:fullstack&layout:single
+```markdown guide:file path=.vite-plus-inherited-adrs/0004-ssr-shape.md when=mode:fullstack&layout:single
 # The SSR shape renders the document on the server, and keeps no `index.html`
 
 This project renders its page on the server: `src/entry-server.tsx` default-exports an object
@@ -2933,7 +3314,7 @@ the rendered marker on top.
   document, the render marker, and that the client bundle is emitted and referenced.
 ```
 
-```markdown guide:file path=docs/adr/0004-split-shape.md when=mode:fullstack&layout:monorepo
+```markdown guide:file path=.vite-plus-inherited-adrs/0004-split-shape.md when=mode:fullstack&layout:monorepo
 # The split shape keeps the server at the workspace root and the frontend beside it
 
 This project is a pnpm workspace with two packages that deploy separately: the workspace root is
@@ -2993,7 +3374,7 @@ artifacts: two builds, two outputs, one API.
   `/api` prefix before the server sees the path, and the dev proxy is measured to do the same.
 ```
 
-```markdown guide:file path=docs/adr/0004-backend-workspace.md when=mode:backend&layout:monorepo
+```markdown guide:file path=.vite-plus-inherited-adrs/0004-backend-workspace.md when=mode:backend&layout:monorepo
 # The backend lives in a workspace whose root is the server
 
 This project is a pnpm workspace with exactly one package that matters: the root, which *is* the
@@ -3038,7 +3419,7 @@ is a decision: kept as the home for future shared code, or removed.
   (the `PORT` environment variable is honoured).
 ```
 
-```markdown guide:file path=docs/adr/0004-frontend-workspace.md when=mode:frontend&layout:monorepo
+```markdown guide:file path=.vite-plus-inherited-adrs/0004-frontend-workspace.md when=mode:frontend&layout:monorepo
 # The frontend lives in a workspace whose root is a shell
 
 This project is a pnpm workspace, and the application is the package the monorepo template wrote:
@@ -3085,11 +3466,47 @@ prefix exactly as the production edge does.
   before the backend sees the path, and the app's dev proxy is measured to do the same.
 ```
 
+```bash guide:exec id=adr-land
+set -euo pipefail
+
+adr_dir=$(cat .vite-plus-adr-dir)
+source=$(cat .vite-plus-adr-source)
+stage=.vite-plus-inherited-adrs
+
+[ -d "$stage" ] || { echo "the inherited ADRs are not staged in $stage" >&2; exit 1; }
+[ -n "$adr_dir" ] || { echo "adr-convention resolved no landing point" >&2; exit 1; }
+staged=$(find "$stage" -maxdepth 1 -name '*.md' | wc -l)
+[ "$staged" -gt 0 ] || { echo "no inherited ADR is staged in $stage" >&2; exit 1; }
+
+# Install, never overwrite: a document already at the landing point is somebody else's decision,
+# and an inherited document is not allowed to replace one. This is the rule the setup flow follows
+# for the brief as well — a file that already has a section is edited where it is.
+mkdir -p "$adr_dir"
+landed=0
+for file in "$stage"/*.md; do
+  name=$(basename "$file")
+  if [ -e "$adr_dir/$name" ]; then
+    echo "$adr_dir/$name already exists; the inherited ADRs never overwrite a document that is" >&2
+    echo "already there — read it, keep whichever version is right, and re-run this step" >&2
+    exit 1
+  fi
+  cp "$file" "$adr_dir/$name"
+  # Prove the landing instead of trusting the copy: byte-identical, at the resolved directory.
+  cmp -s "$file" "$adr_dir/$name" || { echo "$adr_dir/$name does not match the inherited document $file" >&2; exit 1; }
+  landed=$((landed + 1))
+done
+
+# The staging directory goes: the documents live at the landing point, not in a scratch directory.
+rm -rf "$stage"
+echo "ok  $landed inherited ADRs installed in $adr_dir/ — $source"
+```
+
 ```markdown guide:file path=docs/agent-notes.md
 # Agent notes — known traps and version facts
 
 Facts about this project's stack, recorded because each one has already cost someone time.
-Rules live in `AGENTS.md`; the reasoning lives in `docs/adr/`.
+Rules live in `AGENTS.md`; the ADRs behind them live in the directory `docs/provenance.md`
+records — shipped text cannot name a path this run decides.
 
 ## Two engines, one green light
 
@@ -3142,14 +3559,33 @@ Rules live in `AGENTS.md`; the reasoning lives in `docs/adr/`.
 - `skills-lock.json` records content hashes, not a commit. If you need to know which upstream
   revision is installed, compare the hashes or read the revision recorded in
   `docs/provenance.md`.
-- If the issue tracker is this project's GitHub repository and it was configured through the
-  setup skill, read blocking edges with `gh api repos/<owner>/<repo>/issues/<n> --jq .issue_dependencies_summary`
-  or `gh issue view <n> --json blockedBy`. The generated `docs/agents/issue-tracker.md` shows
-  a REST field name that `gh issue view --json` rejects; do not patch that generated file —
-  re-running the setup skill regenerates it from its seed.
 - `vp test` exits 1 when it finds no test files, which is why a project that has a test script
   passes `--passWithNoTests` until there is something to run. A green test command over an empty
   suite means the runner is wired, not that anything is covered.
+```
+
+```bash guide:exec id=notes-setup when=setup:yes
+set -euo pipefail
+: "${GUIDE_TRACKER:?Phase 4.5 must answer GUIDE_TRACKER when the setup flow runs}"
+
+# The trap the chosen tracker brings, and only the chosen tracker's: a project tracked in GitHub
+# reads blocking edges through the REST summary or a CLI field, never through the generated file's
+# wording — that file is regenerated from the skill's seed and a hand patch to it is lost silently.
+if [ "$GUIDE_TRACKER" = github ]; then
+  cat >> docs/agent-notes.md <<'NOTES'
+
+## The issue tracker (GitHub)
+
+- Read blocking edges with `gh api repos/<owner>/<repo>/issues/<n> --jq .issue_dependencies_summary`
+  (the REST summary: open blockers only) or `gh issue view <n> --json blockedBy`. The generated
+  `docs/agents/issue-tracker.md` shows a REST field name that `gh issue view --json` rejects; do not
+  patch that generated file — re-running the setup skill regenerates it from its seed, so the patch
+  is silently dropped.
+NOTES
+  echo "ok  the GitHub tracker's blocking-edge trap is in docs/agent-notes.md"
+else
+  echo "ok  tracker is $GUIDE_TRACKER; no GitHub-specific trap belongs in docs/agent-notes.md"
+fi
 ```
 
 ```bash guide:exec id=notes-proxy when=mode:frontend&layout:single
@@ -3447,6 +3883,13 @@ set -euo pipefail
 : "${GUIDE_PM:?}"; : "${GUIDE_VP_VERSION:?}"; : "${GUIDE_TS_VERSION:?}"
 : "${GUIDE_SKILLS_VERSION:?}"; : "${GUIDE_SETUP:?}"
 
+# The landing point the convention resolved, and where that resolution came from: the birth
+# certificate is the one document that says *why* the inherited ADRs are where they are, which is
+# what makes moving them later (or leaving them) a decision instead of a guess.
+adr_dir=$(cat .vite-plus-adr-dir)
+adr_source=$(cat .vite-plus-adr-source)
+[ -n "$adr_dir" ] || { echo "adr-convention resolved no landing point" >&2; exit 1; }
+
 vite_plus_version=$(node -p 'require("./node_modules/vite-plus/package.json").version')
 # In the monorepo layout TypeScript belongs to the packages that compile; the root's own program is
 # type-checked by the toolchain's checker, and the root manifest has no typescript dependency to
@@ -3542,6 +3985,31 @@ else
   exit 1
 fi
 
+# The setup decision point's record, and — in the deferred branch — the assumption it leaves
+# behind. The paragraph is what makes the landing point above revisitable: it names the documents
+# that carry the directory, so a project that adopts a convention later knows what to update.
+# `$(cat …)` strips the trailing newline, so the template below keeps a blank line after
+# `${assumptions}`: without it the last line of that paragraph is glued to the next heading, and a
+# `##` that does not start a line is not a heading.
+if [ "$GUIDE_SETUP" = yes ]; then
+  setup_row="yes — the skill's flow ran, and the convention it wrote (Phase 4.5) named the landing point"
+  assumptions=""
+else
+  setup_row="no — deferred to the user, so no convention was negotiated"
+  assumptions=$(cat <<'ASSUMPTIONS'
+## Assumptions worth revisiting
+
+- **The skills setup was deferred** at Phase 4.5 (`GUIDE_SETUP=no`), so this project never
+  negotiated its domain-doc convention and the inherited ADRs took the guide's default landing
+  point — an assumption, not a decision. When a convention does arrive, run
+  `/setup-matt-pocock-skills` (or write `docs/agents/domain.md` yourself) and move the ADRs to the
+  directory it names; the three documents that carry the directory are `AGENTS.md` (the closing
+  line of the constraints), `docs/agent-notes.md` (its header) and this file.
+
+ASSUMPTIONS
+)
+fi
+
 mkdir -p docs
 cat > docs/provenance.md <<PROVENANCE
 # Provenance — how this project was generated
@@ -3557,7 +4025,8 @@ choice instead of guessed at. Versions here are the ones that actually resolved.
 | Layout | ${GUIDE_LAYOUT} |
 ${choice_rows}
 | Package manager | ${GUIDE_PM} |
-| Skills setup run now | ${GUIDE_SETUP} (inherited ADRs use \`docs/adr/\` when deferred) |
+| Skills setup run now | ${setup_row} |
+| Inherited ADR landing point | \`${adr_dir}/\` — ${adr_source} |
 
 ## Toolchain that resolved
 
@@ -3594,8 +4063,10 @@ ${scaffold_line}
 ${server_step}
 5. Skills: upstream set resolved at run time, installed, lockfile verified against that set.
 6. Setup decision: recorded above.
-7. Documents: constraints in \`AGENTS.md\`, inherited ADRs in \`docs/adr/\`, traps in \`docs/agent-notes.md\`, this file.
+7. Documents: constraints in \`AGENTS.md\`, inherited ADRs in \`${adr_dir}/\`, traps in \`docs/agent-notes.md\`, this file.
 ${verify_step}
+
+${assumptions}
 
 ## If something looks wrong
 
@@ -3603,7 +4074,7 @@ Start here before changing code: the version table above is the shortest path to
 documentation, and \`docs/agent-notes.md\` lists the failures that are known to be silent.
 PROVENANCE
 
-rm -f .vite-plus-create.log .vite-plus-skills.log .vite-plus-skill-names .vite-plus-skills-commit
+rm -f .vite-plus-create.log .vite-plus-skills.log .vite-plus-skill-names .vite-plus-skills-commit .vite-plus-adr-dir .vite-plus-adr-source
 echo "ok  docs/provenance.md written"
 ```
 
@@ -4163,7 +4634,10 @@ Report, in this order:
    one, a server that never learns the `/api` prefix exists, root commands that name only what the
    workspace has (a script naming a deleted package would exit 0 having run nothing), and — when the
    placeholder package was kept — a sub-package that carries its own skeleton, configuration and
-   build.
+   build. And say which branch of the setup decision point ran: with `yes`, the `## Agent skills`
+   brief it wrote — tracker, label vocabulary, domain-doc layout — and the ADR landing point that
+   brief's convention named (`docs/provenance.md` records both); with `no`, the default landing
+   point and the assumption the provenance spells out — revisitable, not decided.
 4. **What is not covered** — browser hydration is not verified (the smoke test asserts the
    server's response, not the browser's), and production deployment topology is out of scope. In
    backend mode only the one initialized route is verified: a real route table is something

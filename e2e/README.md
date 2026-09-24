@@ -20,7 +20,10 @@ non-zero at the first failure and prints where its logs went.
 - **The verify block is the assertion set.** It is extracted and run as-is; the harness does
   not keep a second copy of those checks.
 - **Outcomes are checked from outside**: `e2e/assert.mjs` inspects the produced project — the
-  file tree, where the documents landed, the ignore rules (probed with `git check-ignore` in a
+  file tree, where the documents landed (the ADR landing point the profile's answer makes the
+  convention resolve, the `## Agent skills` brief the setup flow writes when its branch runs, the
+  three documents that point at that directory, and that the run left no `.vite-plus-*` scratch
+  behind), the ignore rules (probed with `git check-ignore` in a
   throwaway repository so the target need not be one), the alias mechanism, the dev-proxy
   wiring, and the installed skill set compared against the upstream manifest re-resolved at
   assertion time. In the backend profile it also checks what that mode's silent failures look
@@ -78,6 +81,22 @@ non-zero at the first failure and prints where its logs went.
   SSR renderer (`client-only build`); and the render marker itself must be what the smoke reads,
   so removing it from the rendered page makes verify fail on the marker, with the shape otherwise
   intact.
+- **Both branches of the setup decision point (Phase 4.5) are run, by the profiles themselves.**
+  `frontend-single` answers `yes` — with a GitHub tracker and a convention whose ADR directory is
+  not the guide's default — and the other five answer `no`. So one end-to-end run proves the flow's
+  writes (the skill's seed files, the `## Agent skills` brief in `AGENTS.md`), the ADR landing point
+  that comes out of the convention, the tracker-conditional trap in `docs/agent-notes.md`, and the
+  provenance sentence that records the convention as the source; the other five prove the deferred
+  branch (no `docs/agents/`, no brief, no tracker trap, the default landing point recorded as an
+  assumption). The controls then prove what no single pass can: the guard refuses a `yes` whose
+  questions were never answered and the one answer no step can write (`other`, the user's own
+  paragraph); the landing point follows a *planted* convention that disagrees with the answer — in
+  the shape the skill's own seed writes, path then annotation, and in the annotation-only
+  multi-context shape — so it cannot be hardcoded and cannot be the answer either; a document
+  already at the landing point is refused rather than overwritten; and — in the `yes` profile — the
+  flow's other answers (a local tracker, the default ADR directory, then a GitLab switch that also
+  records the multi-context layout) run once each in a scratch project, where the re-run regenerates
+  the skill's generated files and a section the flow never wrote comes through untouched.
 - **Profiles are explicit.** A profile is a pre-answered answers file plus assertions;
   `frontend/single`, `backend/single`, `fullstack/single`, `fullstack/monorepo`,
   `backend/monorepo` and `frontend/monorepo` have both, and `assert.mjs` fails rather than pass
@@ -91,9 +110,15 @@ mechanical half; the guide is written for the half that needs judgement:
 - **Answering the decision points.** The harness pre-answers them from a profile file. The
   guide asks them, offers options with a recommendation, and discloses the prerelease
   toolchain and the version pins — a person (or an agent relaying to a person) still decides.
-- **Driving the user-invocable setup skill** (Phase 4.5). `GUIDE_SETUP=yes` is refused loudly
-  in an unattended run, because the setup skill is user-invocable and interactive; the
-  attended path is a conversation, not a command.
+- **Talking to the user for the setup skill (Phase 4.5).** The harness never drives
+  `/setup-matt-pocock-skills` as a conversation: the `yes` branch's questions are pre-answered — by
+  a profile in the end-to-end run, by a control in the scratch project — which is exactly the
+  stand-in every other decision point uses. What the harness exercises is the flow's write half:
+  the files the skill's own seeds produce, the brief it edits into `AGENTS.md`, the convention it
+  leaves behind. The explore/present/confirm conversation an agent has with a person is not run, and
+  the one answer that only that conversation can produce (`other`) is refused rather than invented.
+  The skill stays user-invocable: answers stand in for the user's answers, never for the user's
+  invocation.
 - **Handling a machine that differs from this one.** The harness runs with whatever Node,
   package managers and network this machine has; the guide's preflight reports what is really
   available (including Vite+ shims masquerading as `pnpm`, `yarn` and `vpx`) so a human can
@@ -154,7 +179,7 @@ mechanical half; the guide is written for the half that needs judgement:
 
 | Profile | What it initializes | The stub it needs |
 | --- | --- | --- |
-| `frontend-single` | a single-project frontend (`react-ts`) with the dev proxy at the root | `__STUB_PORT__` (its backend is external) |
+| `frontend-single` | a single-project frontend (`react-ts`) with the dev proxy at the root, and the **setup flow run now** (`yes`, GitHub tracker, ADRs in `docs/decisions/`) | `__STUB_PORT__` (its backend is external) |
 | `backend-single` | a Nitro v3 server at the project root, no client | none |
 | `fullstack-single` | the SSR shape: server-rendered page + same-origin API, no `index.html` | none |
 | `fullstack-monorepo` | the split shape: root server + `apps/website` + proxy chain | none (the root server is the target) |
@@ -165,3 +190,11 @@ The two placeholder branches are run once each, in different profiles: `backend-
 `packages/utils` (so its own skeleton, config and build are asserted) and `frontend-monorepo`
 deletes it (so the layout-only answer is asserted). The split shape keeps it too; its `no` branch
 is the one combination no profile runs, and the guide says so.
+
+The setup decision point is run once per branch the same way: `frontend-single` is the `yes`
+profile (with a convention whose ADR directory is not the guide's default, so the landing point is
+proven to come from the project), and the other five are the `no` profiles. The sub-answers no
+profile takes are run once each by that profile's controls, in a scratch project that has the
+installed skill's seeds: a `local` tracker, the default ADR directory, then a `gitlab` switch that
+also records the `multi` layout. The one answer nothing runs is `other`, whose file is the user's
+own paragraph: the guard refuses it, and the guide says so.

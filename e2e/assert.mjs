@@ -131,6 +131,13 @@ function readTsconfig(relative) {
 const manifest = readJson("package.json");
 const mode = answers.GUIDE_MODE;
 const layout = answers.GUIDE_LAYOUT;
+// The setup decision point (Phase 4.5) is a branch, and each branch leaves a different project
+// behind — so every check about it is driven by the answer, never by what the target happens to
+// contain. `yes` writes the skill's brief and its docs/agents/ files, and the ADR landing point is
+// the directory the confirmed convention names; `no` writes none of that and the inherited ADRs
+// take the guide's default, recorded as an assumption in the provenance.
+const setupRan = answers.GUIDE_SETUP === "yes";
+const adrDir = setupRan ? (answers.GUIDE_ADR_DIR || "docs/adr") : "docs/adr";
 // Whether this shape has a server side, and where it lives: a backend project is one, the SSR shape
 // is a frontend and a server in the same project, and the split shape is a server package and a
 // frontend package. In every profile the server's project is the root: the scaffolded project in
@@ -879,11 +886,83 @@ check("AGENTS.md keeps the tool-owned block and gains the project constraints", 
   return `${agents.length} bytes`;
 });
 
-check("inherited ADRs land in docs/adr with the profile's set", () => {
-  const dir = join(target, "docs", "adr");
+check("the setup decision point left the trace its branch says it should", () => {
+  const agents = read("AGENTS.md");
+  const notes = read(join("docs", "agent-notes.md"));
+  const provenance = read(join("docs", "provenance.md"));
+
+  if (setupRan) {
+    // The flow's product is the skill's own output: the tracker file for the answered tracker, the
+    // label vocabulary (only when `triage` is installed — the skill's own rule), and the convention.
+    const trackerFile = join("docs", "agents", "issue-tracker.md");
+    assert(existsSync(join(target, trackerFile)), "the setup flow wrote no docs/agents/issue-tracker.md");
+    const tracker = read(trackerFile);
+    const trackerExpectation = {
+      github: /# Issue tracker: GitHub/,
+      gitlab: /# Issue tracker: GitLab/,
+      local: /local markdown/i,
+    }[answers.GUIDE_TRACKER];
+    assert(trackerExpectation, `assert.mjs has no expectation for GUIDE_TRACKER=${answers.GUIDE_TRACKER}`);
+    assert(trackerExpectation.test(tracker), `docs/agents/issue-tracker.md is not the ${answers.GUIDE_TRACKER} seed`);
+    const triageInstalled = existsSync(join(target, ".agents", "skills", "triage", "SKILL.md"));
+    const labels = join("docs", "agents", "triage-labels.md");
+    assert(
+      existsSync(join(target, labels)) === triageInstalled,
+      triageInstalled
+        ? "the setup flow wrote no docs/agents/triage-labels.md although the triage skill is installed"
+        : "the setup flow wrote a label vocabulary although the triage skill is not installed",
+    );
+    assert(existsSync(join(target, "docs", "agents", "domain.md")), "the setup flow wrote no docs/agents/domain.md");
+
+    // The brief is in place, points at each file the flow wrote, and sits between the tool-owned
+    // block and the constraints — the two sections that are not the skill's to rewrite.
+    const blockAt = agents.indexOf("## Agent skills");
+    assert(blockAt >= 0, "AGENTS.md has no ## Agent skills block although the setup flow ran");
+    assert(agents.indexOf("<!--VITE PLUS END-->") < blockAt, "the ## Agent skills block is not after the tool-owned block");
+    assert(blockAt < agents.indexOf("## Project constraints"), "the ## Agent skills block is not before the project constraints");
+    assert(/### Issue tracker[\s\S]*docs\/agents\/issue-tracker\.md/.test(agents), "the brief does not point at docs/agents/issue-tracker.md");
+    assert(/### Domain docs[\s\S]*docs\/agents\/domain\.md/.test(agents), "the brief does not point at docs/agents/domain.md");
+    assert(
+      agents.includes("### Triage labels") === triageInstalled,
+      "the brief's triage-labels sub-block does not follow whether the triage skill is installed",
+    );
+
+    // The convention names the layout the user confirmed and the ADR directory the landing came from.
+    const domain = read(join("docs", "agents", "domain.md"));
+    const layoutWord = answers.GUIDE_DOMAIN_LAYOUT === "multi" ? "multi-context" : "single-context";
+    assert(domain.includes(layoutWord), `docs/agents/domain.md does not record the ${layoutWord} layout`);
+    assert(domain.includes(`${adrDir}/`), `docs/agents/domain.md does not name the ADR directory ${adrDir}/`);
+
+    // The tracker's trap is conditional on the tracker: GitHub gets it, the others do not.
+    if (answers.GUIDE_TRACKER === "github") {
+      assert(notes.includes("issue_dependencies_summary"), "the GitHub tracker's blocking-edge trap is not in docs/agent-notes.md");
+      assert(notes.includes("blockedBy"), "the trap does not name `gh issue view --json blockedBy`");
+      assert(/do not\s+patch/i.test(notes), "the trap does not say the generated issue-tracker file must not be patched");
+      assert(/regenerat/i.test(notes), "the trap does not say the setup skill regenerates the file from its seed");
+      assert(/silently/i.test(notes), "the trap does not say a patch to the generated file is lost silently");
+    } else {
+      assert(!notes.includes("issue_dependencies_summary"), "a non-GitHub tracker got the GitHub blocking-edge trap");
+    }
+    assert(!/was never negotiated|was deferred/i.test(provenance), "the provenance records a deferral although the setup flow ran");
+  } else {
+    assert(!existsSync(join(target, "docs", "agents")), "the setup flow was declined but docs/agents/ exists");
+    assert(!/^## Agent skills[ \t]*$/m.test(agents), "the setup flow was declined but AGENTS.md carries its brief");
+    assert(!notes.includes("issue_dependencies_summary"), "the setup flow was declined but the GitHub tracker trap is in the notes");
+    assert(/deferred|assumption/i.test(provenance), "the provenance does not record the deferred setup as an assumption");
+  }
+  return setupRan ? `${answers.GUIDE_TRACKER} tracker, ${answers.GUIDE_DOMAIN_LAYOUT || "single"}-context` : "deferred";
+});
+
+check("the inherited ADRs land where the project's own convention says", () => {
+  // The landing point is the one the convention names — never the guide's default by reflex, and
+  // never an answer the profile supplied. Phase 4.5's flow writes the convention, GUIDE.md's
+  // `adr-convention` reads it back, and the answer-driven expectation below is what makes a
+  // hardcoded path fail: `frontend/single` answers a directory that is not `docs/adr/`.
+  const dir = join(target, adrDir);
   const files = existsSync(dir) ? readdirSync(dir).sort() : [];
-  assert(files.some((f) => /^0001-.*\.md$/.test(f)), `no 0001-* ADR (found ${files.join(", ") || "nothing"})`);
-  assert(files.some((f) => /^0002-.*\.md$/.test(f)), `no 0002-* ADR (found ${files.join(", ") || "nothing"})`);
+  assert(files.length > 0, `no inherited ADR landed in ${adrDir}/ (found nothing)`);
+  assert(files.some((f) => /^0001-.*\.md$/.test(f)), `no 0001-* ADR in ${adrDir}/ (found ${files.join(", ") || "nothing"})`);
+  assert(files.some((f) => /^0002-.*\.md$/.test(f)), `no 0002-* ADR in ${adrDir}/ (found ${files.join(", ") || "nothing"})`);
   const hasServerAdr = files.some((f) => /^0003-.*\.md$/.test(f));
   assert(hasServerAdr === hasServer, hasServer ? "a server profile must write the server-foundation ADR" : "a pure frontend must not write the server ADR");
   // The shape's own ADR is the shape's, and only that shape's: the 0004 slot is per project, and
@@ -914,7 +993,54 @@ check("inherited ADRs land in docs/adr with the profile's set", () => {
     assert(/^# \S/m.test(body), `${file} has no title`);
     assert(body.length > 200, `${file} looks empty (${body.length} bytes)`);
   }
-  return files.join(" ");
+  // The default directory holds no inherited ADR when the convention named another one: a project
+  // whose convention moved them and which still carries `docs/adr/` has two truths about where its
+  // decisions live.
+  if (adrDir !== "docs/adr") {
+    const fallback = join(target, "docs", "adr");
+    const straddling = existsSync(fallback) ? readdirSync(fallback).filter((f) => /^\d{4}-.*\.md$/.test(f)) : [];
+    assert(straddling.length === 0, `the inherited ADRs are also in the default docs/adr/ (${straddling.join(", ")}), not only in ${adrDir}/`);
+  }
+  return `${adrDir}/: ${files.join(" ")}`;
+});
+
+check("every document that points at the ADR directory names the one the convention resolved", () => {
+  // Two kinds of pointer, and both are checked: the documents written at run time name the resolved
+  // directory, and the notes — shipped text, which cannot know a path this run decides — points at
+  // the record instead. A path that is right in one run and stale in another is the kind of quiet
+  // wrongness these documents exist to prevent.
+  const agents = read("AGENTS.md");
+  const notes = read(join("docs", "agent-notes.md"));
+  const provenance = read(join("docs", "provenance.md"));
+  for (const [name, body] of [["AGENTS.md", agents], ["docs/provenance.md", provenance]]) {
+    assert(body.includes(`${adrDir}/`), `${name} does not name the ADR directory (${adrDir}/)`);
+    if (adrDir !== "docs/adr") {
+      assert(!body.includes("docs/adr/"), `${name} points at docs/adr/, which is not where the inherited ADRs landed`);
+    }
+  }
+  assert(/docs\/provenance\.md/.test(notes), "docs/agent-notes.md does not point at the record for the ADR directory");
+  assert(!notes.includes("docs/adr/"), "docs/agent-notes.md names an ADR path; the shipped notes must point at the record instead");
+  // The provenance says where the landing point came from, so a later migration is a decision:
+  // the convention when the setup flow ran, the guide's default (an assumption) when it did not.
+  if (setupRan) {
+    assert(
+      /docs\/agents\/domain\.md/.test(provenance),
+      "the provenance does not record the convention the landing point came from",
+    );
+  } else {
+    assert(/deferred/i.test(provenance) && /default/i.test(provenance), "the provenance does not say the landing point is the default");
+  }
+  return "AGENTS.md, docs/agent-notes.md, docs/provenance.md";
+});
+
+check("the run leaves no scratch of its own behind", () => {
+  // The run keeps its intermediate state in `.vite-plus-*` entries at the project root (the create
+  // log, the staged inherited ADRs, the resolved landing point, the check log). Every one of them
+  // is the run's own bookkeeping, so a project that still carries one carries something the guide
+  // did not finish with — which is also how a half-done landing would show up.
+  const leftovers = readdirSync(target).filter((entry) => entry.startsWith(".vite-plus"));
+  assert(leftovers.length === 0, `the run left its own scratch behind: ${leftovers.join(", ")}`);
+  return "no .vite-plus-* entries";
 });
 
 check("agent-notes.md records the known traps and is referenced from AGENTS.md", () => {
@@ -1016,6 +1142,20 @@ check("provenance.md records resolved versions, the skills commit, and the choic
       assert(provenance.includes("apps/website"), "provenance does not record where the app lives");
       assert(/Server \| none|no server/i.test(provenance), "the provenance record does not say this workspace has no server");
     }
+  }
+  // Structure, not only content: the closing section has to still be a heading. The deferred
+  // branch's assumption paragraph is a shell interpolation, and a paragraph whose last line runs
+  // into the next `##` silently stops it from being a heading at all — which is how this assertion
+  // found its own bug once.
+  assert(
+    /^## If something looks wrong$/m.test(provenance),
+    "the provenance's closing section is not a heading (a paragraph ran into it)",
+  );
+  if (!setupRan) {
+    assert(
+      /^## Assumptions worth revisiting$/m.test(provenance),
+      "the deferred branch's assumption paragraph is not a section of its own",
+    );
   }
   return `${provenance.split("\n").length} lines`;
 });

@@ -12,7 +12,8 @@
 #   4. runs the guide's verify block — extracted from GUIDE.md, never re-implemented
 #      here — and reports its exit code
 #   5. runs e2e/assert.mjs for the external-behaviour checks the guide itself does
-#      not make (file tree, document placement, skills lockfile agreement)
+#      not make (file tree, document placement, the setup branch's trace, skills
+#      lockfile agreement)
 #   6. runs the negative controls: the preflight must refuse a non-empty target and an old
 #      Node, the profile guard must refuse an unimplemented mode and every base it does not
 #      re-scaffold without writing anything, the route-scan assertion must catch a test file
@@ -22,6 +23,16 @@
 #      of serving the app's HTML, and — in the SSR profile — a planted index.html must stop
 #      being a silent client-shell degradation and a removed render mark must be what the
 #      smoke notices.
+#   7. runs the setup decision point's controls: the guard must refuse a `yes` with no answers
+#      and the one answer no step can write (`other`); the ADR landing point must come from the
+#      project's convention — including the skill's own annotated-tree shape — with a planted
+#      convention beating the answer; an existing document at that landing point must not be
+#      overwritten; and, in the profile that takes the `yes` branch, the flow's other answers
+#      (a local tracker, the default ADR directory, then a GitLab switch that also records the
+#      multi-context layout) must run once each in a scratch project, regenerating the skill's
+#      generated files while a section the flow never wrote comes through untouched. Both
+#      branches themselves are run by the profiles: `frontend-single` answers `yes`, the rest
+#      `no`.
 #
 # What it is NOT: a replacement for an agent reading GUIDE.md. The guide's decision
 # points are pre-answered here, and the parts that need judgement are listed in
@@ -107,7 +118,7 @@ run_plan() {
   # than re-deriving the plan's shape here.
   # The harness hooks into these steps by id; a renamed step must break the harness loudly
   # rather than silently skip the accommodation or the negative controls.
-  for required in preflight bootstrap; do
+  for required in preflight bootstrap setup-guard adr-convention adr-land; do
     grep -q "$(printf '\t')exec$(printf '\t')$required$(printf '\t')" "$PLAN/plan.tsv" \
       || die "the harness depends on a plan step named $required"
   done
@@ -158,6 +169,202 @@ run_plan() {
   done < "$PLAN/plan.tsv"
 }
 
+# ------------------------------------------------------- the setup decision point
+# Phase 4.5 is a decision point with two branches, and which branch a run takes is an answer, not
+# something to infer from the target. Both branches are run by the profiles themselves —
+# `frontend-single` answers `yes` (with a GitHub tracker and a convention whose ADR directory is
+# not the guide's default) and the other five answer `no` — so what is left for the controls is
+# what a single pass cannot show:
+#   - the guard refuses a `yes` whose questions were never answered, and the one answer no step can
+#     write (`other`, the user's own paragraph);
+#   - the ADR landing point is read out of the project's convention rather than taken from the
+#     answer or hardcoded — including the skill's own annotated-tree shape, whose tree a parser has
+#     to read the way a person does, and the annotation-only multi-context shape;
+#   - a document already at the landing point is never overwritten;
+#   - in the `yes` profile, the answers no profile takes (a local tracker, the default ADR
+#     directory, then a GitLab switch that also records the multi-context layout) run once each in
+#     a scratch project, where the re-run regenerates the skill's generated files while a section
+#     the flow never wrote comes through untouched.
+setup_controls() {
+  local guard convention land flow
+  guard=$(awk -F'\t' '$2 == "exec" && $3 == "setup-guard" { print $4 }' "$PLAN/plan.tsv")
+  convention=$(awk -F'\t' '$2 == "exec" && $3 == "adr-convention" { print $4 }' "$PLAN/plan.tsv")
+  land=$(awk -F'\t' '$2 == "exec" && $3 == "adr-land" { print $4 }' "$PLAN/plan.tsv")
+  flow=$(awk -F'\t' '$2 == "exec" && $3 == "setup-flow" { print $4 }' "$PLAN/plan.tsv")
+  [ -n "$guard" ] && [ -n "$convention" ] && [ -n "$land" ] \
+    || die "the plan is missing the setup-guard, adr-convention or adr-land step"
+
+  say "setup control: the guard refuses a yes whose questions were never answered"
+  # `GUIDE_SETUP=yes` is runnable only with the answers the skill's questions map to; a missing one
+  # is a question nobody answered, so it has to stop rather than guess at a tracker or a directory.
+  # The profile's answers are exported in this shell, so the ones that must be *absent* are blanked
+  # explicitly — an empty assignment is what "not answered" means here, as everywhere else.
+  if (cd "$RUN_DIR/negative/empty-target" && GUIDE_SETUP=yes GUIDE_TRACKER= GUIDE_ADR_DIR= GUIDE_DOMAIN_LAYOUT= bash "$PLAN/$guard") > "$LOGS/neg-setup-guard.log" 2>&1; then
+    cat "$LOGS/neg-setup-guard.log"
+    die "the setup guard accepted GUIDE_SETUP=yes with no answers"
+  fi
+  grep -q 'GUIDE_TRACKER' "$LOGS/neg-setup-guard.log" || {
+    tail -5 "$LOGS/neg-setup-guard.log"
+    die "the setup guard refused, but not on the answer it needs (see $LOGS/neg-setup-guard.log)"
+  }
+  echo "  refused, naming GUIDE_TRACKER (see $LOGS/neg-setup-guard.log)"
+
+  say "setup control: the guard refuses the one answer no step can write (other)"
+  # `other` is a legitimate answer to the skill's Section A — and the only one whose file comes from
+  # the user's own paragraph. Pre-answering it would mean inventing that paragraph, so the guard is
+  # where it stops, before anything is written.
+  if (cd "$RUN_DIR/negative/empty-target" && GUIDE_SETUP=yes GUIDE_TRACKER=other bash "$PLAN/$guard") > "$LOGS/neg-setup-other.log" 2>&1; then
+    cat "$LOGS/neg-setup-other.log"
+    die "the setup guard accepted GUIDE_TRACKER=other, whose file only the conversation can write"
+  fi
+  grep -q "user's" "$LOGS/neg-setup-other.log" || {
+    tail -5 "$LOGS/neg-setup-other.log"
+    die "the setup guard refused 'other', but not by naming the paragraph it needs (see $LOGS/neg-setup-other.log)"
+  }
+  echo "  refused, naming the user's own paragraph (see $LOGS/neg-setup-other.log)"
+
+  say "setup control: the ADR landing point is read from the project's convention, not from the answer"
+  # The planted convention is written the way the skill's own seed writes a multi-context tree: the
+  # path, then an annotation after it. A parser that reads the whole line as the name finds no ADR
+  # directory here — and then says so about a file that does name one — which is exactly what this
+  # control exists to catch. The answer says the default; the convention has to win.
+  local control="$RUN_DIR/negative/adr-convention"
+  mkdir -p "$control/.vite-plus-inherited-adrs" "$control/docs/agents"
+  cp "$PLAN/files/.vite-plus-inherited-adrs/"*.md "$control/.vite-plus-inherited-adrs/"
+  cat > "$control/docs/agents/domain.md" <<'DOMAIN'
+# Domain Docs
+
+This repo is **single-context**, and its decisions live somewhere of its own.
+
+## File structure
+
+```
+/
+├── CONTEXT.md
+├── documentation/decisions/        ← system-wide decisions
+│   ├── 0001-first.md
+│   └── 0002-second.md
+└── src/
+```
+DOMAIN
+  (cd "$control" && GUIDE_ADR_DIR=docs/adr bash "$PLAN/$convention") > "$LOGS/neg-adr-convention.log" 2>&1 \
+    || { tail -5 "$LOGS/neg-adr-convention.log"; die "the ADR resolver failed (see $LOGS/neg-adr-convention.log)"; }
+  grep -q 'documentation/decisions' "$LOGS/neg-adr-convention.log" || {
+    tail -5 "$LOGS/neg-adr-convention.log"
+    die "the ADR resolver did not read the planted convention (see $LOGS/neg-adr-convention.log)"
+  }
+  echo "  resolved from the convention file, not from the answer"
+
+  say "setup control: an existing document at the landing point is not overwritten"
+  mkdir -p "$control/documentation/decisions"
+  printf '# someone else decided this\n' > "$control/documentation/decisions/0001-toolchain.md"
+  if (cd "$control" && bash "$PLAN/$land") >> "$LOGS/neg-adr-convention.log" 2>&1; then
+    tail -5 "$LOGS/neg-adr-convention.log"
+    die "the ADR landing step overwrote a document that was already at the landing point"
+  fi
+  grep -q '0001-toolchain.md already exists' "$LOGS/neg-adr-convention.log" || {
+    tail -5 "$LOGS/neg-adr-convention.log"
+    die "the landing step refused, but not on the existing document (see $LOGS/neg-adr-convention.log)"
+  }
+  grep -q 'someone else decided this' "$control/documentation/decisions/0001-toolchain.md" \
+    || die "the landing step replaced the document it refused to overwrite"
+  rm "$control/documentation/decisions/0001-toolchain.md"
+  echo "  refused, naming the file, and left it alone"
+
+  # And the landing itself, with nothing in the way: every inherited ADR at the convention's
+  # directory, the answer's default never used. The staged names are read before the landing runs,
+  # because landing them removes the staging directory this loop would otherwise glob.
+  local staged_names=() staged_name
+  for staged_name in "$control/.vite-plus-inherited-adrs/"*.md; do
+    staged_names+=("$(basename "$staged_name")")
+  done
+  [ "${#staged_names[@]}" -gt 0 ] || die "the control has no staged inherited ADR to land"
+  (cd "$control" && bash "$PLAN/$land") >> "$LOGS/neg-adr-convention.log" 2>&1 \
+    || { tail -5 "$LOGS/neg-adr-convention.log"; die "the ADR landing step failed (see $LOGS/neg-adr-convention.log)"; }
+  for staged_name in "${staged_names[@]}"; do
+    [ -f "$control/documentation/decisions/$staged_name" ] \
+      || die "the landing step did not install $staged_name at the convention's directory"
+  done
+  [ -e "$control/docs/adr" ] && die "the landing step used the answer's default although the convention named another directory"
+  [ -e "$control/.vite-plus-inherited-adrs" ] && die "the landing step left its staging directory behind"
+  echo "  landed at documentation/decisions/, with the staging directory gone"
+
+  say "setup control: a convention that annotates the layout instead of listing files still answers"
+  # The multi-context tree the skill ships names its directories only as annotated entries, with no
+  # numbered files anywhere: the directory holding the decisions is the annotated one.
+  local annotated="$RUN_DIR/negative/adr-convention-annotated"
+  mkdir -p "$annotated/.vite-plus-inherited-adrs" "$annotated/docs/agents"
+  cp "$PLAN/files/.vite-plus-inherited-adrs/"*.md "$annotated/.vite-plus-inherited-adrs/"
+  cat > "$annotated/docs/agents/domain.md" <<'DOMAIN'
+# Domain Docs
+
+This repo is **multi-context**.
+
+## File structure
+
+```
+/
+├── CONTEXT-MAP.md
+├── documentation/decisions/        ← system-wide decisions
+└── src/
+    ├── ordering/
+    │   ├── CONTEXT.md
+    │   └── docs/adr/               ← context-specific decisions
+    └── billing/
+        ├── CONTEXT.md
+        └── docs/adr/
+```
+DOMAIN
+  (cd "$annotated" && bash "$PLAN/$convention") > "$LOGS/neg-adr-annotated.log" 2>&1 \
+    || { tail -5 "$LOGS/neg-adr-annotated.log"; die "the ADR resolver failed on the annotated tree (see $LOGS/neg-adr-annotated.log)"; }
+  grep -q 'documentation/decisions' "$LOGS/neg-adr-annotated.log" || {
+    tail -5 "$LOGS/neg-adr-annotated.log"
+    die "the annotated tree did not answer; the parser has to read the path, not the whole line"
+  }
+  (cd "$annotated" && bash "$PLAN/$land") >> "$LOGS/neg-adr-annotated.log" 2>&1 \
+    || { tail -5 "$LOGS/neg-adr-annotated.log"; die "the annotated tree's landing failed (see $LOGS/neg-adr-annotated.log)"; }
+  [ -f "$annotated/documentation/decisions/0001-toolchain.md" ] \
+    || die "the annotated convention named the directory but the ADRs did not land there"
+  echo "  the annotated directory was read and used: documentation/decisions/"
+
+  if [ "${GUIDE_SETUP:-}" = yes ]; then
+    [ -n "$flow" ] || die "the yes profile's plan has no setup-flow step"
+
+    say "setup control: the flow's other answers run once each (a local tracker, the default ADR directory)"
+    # A scratch project that has what the flow's write half reads — the installed skill's seeds, the
+    # triage skill, a brief with the tool-owned block — and nothing else. Its answers are the ones no
+    # profile takes, which is what makes them run once instead of merely being written.
+    local scratch="$RUN_DIR/negative/setup-answers"
+    mkdir -p "$scratch"
+    cp -a "$TARGET/.agents" "$scratch/.agents"
+    printf '<!--VITE PLUS START-->\n\ntool-owned text\n\n<!--VITE PLUS END-->\n' > "$scratch/AGENTS.md"
+    # The profile's answers are exported in this shell, so the two this run must *not* carry are
+    # blanked: an empty assignment is what "not answered" means, and the defaults are what this
+    # control is here to run (the ADR directory the convention falls back to, the single layout).
+    (cd "$scratch" && GUIDE_TRACKER=local GUIDE_ADR_DIR= GUIDE_DOMAIN_LAYOUT= bash "$PLAN/$flow") > "$LOGS/neg-setup-local.log" 2>&1 \
+      || { tail -5 "$LOGS/neg-setup-local.log"; die "the setup flow failed for GUIDE_TRACKER=local (see $LOGS/neg-setup-local.log)"; }
+    cmp -s "$scratch/docs/agents/issue-tracker.md" "$scratch/.agents/skills/setup-matt-pocock-skills/issue-tracker-local.md" \
+      || die "GUIDE_TRACKER=local did not write the local-markdown seed"
+    grep -q '.scratch' "$scratch/AGENTS.md" || die "the brief does not describe the local tracker"
+    grep -q 'docs/adr/' "$scratch/docs/agents/domain.md" || die "the convention does not record the default ADR directory"
+    echo "  local-markdown seed written, and the default ADR directory recorded"
+
+    say "setup control: the tracker-switch re-run regenerates the generated files and leaves the rest alone"
+    # The skill's own text says re-running it is how a tracker is switched, and its files are
+    # generated from its seeds. So a re-run with different answers has to regenerate them — and the
+    # brief's other sections, including one this flow never wrote, have to come through untouched.
+    printf '\n## User notes\n\nA section the flow did not write.\n' >> "$scratch/AGENTS.md"
+    (cd "$scratch" && GUIDE_TRACKER=gitlab GUIDE_DOMAIN_LAYOUT=multi bash "$PLAN/$flow") > "$LOGS/neg-setup-switch.log" 2>&1 \
+      || { tail -5 "$LOGS/neg-setup-switch.log"; die "the setup flow failed on the tracker switch (see $LOGS/neg-setup-switch.log)"; }
+    cmp -s "$scratch/docs/agents/issue-tracker.md" "$scratch/.agents/skills/setup-matt-pocock-skills/issue-tracker-gitlab.md" \
+      || die "the tracker-switch re-run did not regenerate the tracker file from the new seed"
+    grep -q 'multi-context' "$scratch/docs/agents/domain.md" || die "the re-run did not record the multi-context layout"
+    grep -q 'glab' "$scratch/AGENTS.md" || die "the brief still describes the previous tracker"
+    grep -q 'A section the flow did not write.' "$scratch/AGENTS.md" || die "the flow rewrote a section it did not write"
+    [ "$(grep -c '^## Agent skills$' "$scratch/AGENTS.md")" = "1" ] || die "the re-run left more than one ## Agent skills block"
+    echo "  gitlab seed written, multi-context recorded, the user's section and one brief block intact"
+  fi
+}
 negative_controls() {
   local preflight verify guard
   preflight=$(awk -F'\t' '$2 == "exec" && $3 == "preflight" { print $4 }' "$PLAN/plan.tsv")
@@ -451,6 +658,9 @@ node "$E2E_DIR/assert.mjs" --target "$TARGET" --answers "$ANSWERS_FILE" | sed 's
 
 say "negative controls"
 negative_controls
+
+say "setup decision point controls"
+setup_controls
 
 say "PASS — $PROFILE_NAME initialized, verified, and asserted"
 echo "  run: $RUN_DIR"

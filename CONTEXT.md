@@ -27,8 +27,12 @@ The work the guide performs on a scaffold: deleting redundant files, adapting co
 _Avoid_: 改造, 调整, 优化, cleanup
 
 **决策点 (decision point)**:
-A step where the guide must stop and ask the user instead of choosing, offering the concrete options with a recommendation.
+A step where the guide must stop and ask the user instead of choosing, offering the concrete options with a recommendation. The setup decision point (Phase 4.5) is the one only the user can answer: it decides whether to run the user-invocable setup skill.
 _Avoid_: 交互步骤, 确认项, 询问
+
+**项目约定 (project convention)**:
+The domain-doc contract a 目标项目 carries (`docs/agents/domain.md`, reached from the `## Agent skills` brief in `AGENTS.md`/`CLAUDE.md`): the layout (单上下文 / 多上下文) and the directory its ADRs live in. 继承 ADR 的落点 is whatever it says; `docs/adr/` stands only as the fallback for a project whose setup flow was deferred.
+_Avoid_: 规范, 项目配置, 硬编码落点
 
 **约束 (constraints)**:
 The project-owned section of the target project's `AGENTS.md` — its engineering rules, kept outside the tool-owned marked block.
