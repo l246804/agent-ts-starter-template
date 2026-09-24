@@ -39,16 +39,35 @@ non-zero at the first failure and prints where its logs went.
   config, every dependency spec in every manifest is a `catalog:` reference resolving to one
   version per dependency, no script in any package calls a package manager, the app's proxy and
   its guard live in `apps/website`, and the workspace build produced the root's `dist/server`,
-  the app's `apps/website/dist` and the placeholder package's `packages/utils/dist`.
+  the app's `apps/website/dist` and the placeholder package's `packages/utils/dist`. The other two
+  monorepo arrangements are checked as what they are rather than as the split shape minus something:
+  the backend workspace has no client at all (`apps/` is gone), its root is still the server
+  (`defaultPackage: "."`, `plugins: [nitro()]`, `serverDir: ./server`, `output: dist`), its command
+  set is the server's (`dev:server`, `check`, `test`, `build`, `ready` — no `dev:website`), its
+  build is the workspace build's (`vp run -r build` schedules the root and leaves
+  `dist/server/index.mjs`), and the placeholder package it kept carries its own skeleton
+  (`package.json`, `tsconfig.json`, `vite.config.ts`, `tests/`) and its own built `dist/`; the
+  frontend workspace has a shell root (no root page, no server output, no `nitro` dependency), the
+  app as the only application with its own `dist/`, a command set without `dev:server`/`test`/
+  `build`, and its proxy target — the answered backend, or the placeholder when nothing was
+  answered — wired in `apps/website` with the same guard.
 - **A check that cannot fail is not a check.** The negative controls make the preflight refuse
   a non-empty target and an old Node (a `node` shim on `PATH` reports `v24.13.0`), make the
-  profile guard refuse an unimplemented profile, a backend project on a framework base, an
+  profile guard refuse an unimplemented mode, a backend project on a framework base, an
   SSR project on a plain base, a split project on a base the monorepo template does not write,
-  and a monorepo without its placeholder answer (all without writing anything), make the
+  either workspace variant on a base it does not re-scaffold, and a monorepo without its
+  placeholder answer (all without writing anything), make the
   route-scan assertion catch a test file planted next to the routes — a rule a freshly
-  initialized project has no way to violate, so it is made to fail on purpose — and make the
-  verify block go red on a planted type error, planted in `src/` for a frontend profile and in
-  `server/` for a server one, i.e. where that profile's source lives. In the split profile a
+  initialized project has no way to violate, so it is made to fail on purpose — make the
+  verify block go red on a planted type error, planted in the app's `src/` for a frontend profile,
+  in `src/` or `server/` where those exist, i.e. where that profile's source lives, and make the
+  package-name rule fail: in any workspace a control plants the template's own
+  `"dev": "vp run website#dev"` back into the root manifest and requires `assert.mjs` to reject it
+  naming the rule, because that form is the silent no-op — in the arrangement that deletes the
+  package it exits 0 having run nothing (`vp run: 0/0 cache hit`, measured), and in the other two
+  workspaces it is the same form the guide's root commands are re-pointed not to use. In the
+  profiles whose app carries the
+  proxy — the split shape and the frontend workspace — a
   further control removes `DEV_PROXY` from `apps/website/.env` and requires **both** halves of the
   failure to be loud: the verify block must fail naming `DEV_PROXY` (it reaches the workspace build
   first), and the app's dev server must refuse to start rather than come up and answer `/api/*`
@@ -60,8 +79,9 @@ non-zero at the first failure and prints where its logs went.
   so removing it from the rendered page makes verify fail on the marker, with the shape otherwise
   intact.
 - **Profiles are explicit.** A profile is a pre-answered answers file plus assertions;
-  `frontend/single`, `backend/single`, `fullstack/single` and `fullstack/monorepo` have both, and
-  `assert.mjs` fails rather than pass quietly for a profile it has no checks for.
+  `frontend/single`, `backend/single`, `fullstack/single`, `fullstack/monorepo`,
+  `backend/monorepo` and `frontend/monorepo` have both, and `assert.mjs` fails rather than pass
+  quietly for a profile it has no checks for.
 
 ## What it deliberately does not do
 
@@ -81,10 +101,11 @@ mechanical half; the guide is written for the half that needs judgement:
 - **Judgement inside the steps.** Every step is a deterministic script, but a step that fails
   is a report to read, not a script to tweak. The harness stops at exactly the same point the
   guide tells an agent to stop.
-- **Profiles that are not implemented yet.** `frontend/single`, `backend/single`,
-  `fullstack/single` and `fullstack/monorepo` have both a profile file and assertions. `assert.mjs`
-  fails rather than pass silently for any profile it has no checks for, so a `fullstack` run in
-  another layout — or a layout no profile covers — is a report, never a green run.
+- **Profiles that are not implemented yet.** All six combos of the three modes and the two layouts
+  have both a profile file and assertions: `frontend/single`, `frontend/monorepo`, `backend/single`,
+  `backend/monorepo`, `fullstack/single` (the SSR shape) and `fullstack/monorepo` (the split shape).
+  `assert.mjs` fails rather than pass silently for any profile it has no checks for, so a mode or
+  layout no profile covers is a report, never a green run.
 
 ## Environment notes
 
@@ -123,4 +144,24 @@ mechanical half; the guide is written for the half that needs judgement:
   own servers at once — the workspace root server (`__FREE_PORT__`, which the guide also writes
   into the app's `DEV_PROXY`) and the frontend app (`__FREE_PORT2__`) — and the smoke test reads
   the app's port, so a `200` with the server's JSON there can only mean the proxy chain carried the
-  request and stripped the prefix.
+  request and stripped the prefix. The other two monorepo profiles need one server each: the backend
+  workspace runs the root server (`__FREE_PORT__`), and the frontend workspace runs only the app
+  (`__FREE_PORT2__`), whose port the smoke reads.
+
+---
+
+## The six profiles
+
+| Profile | What it initializes | The stub it needs |
+| --- | --- | --- |
+| `frontend-single` | a single-project frontend (`react-ts`) with the dev proxy at the root | `__STUB_PORT__` (its backend is external) |
+| `backend-single` | a Nitro v3 server at the project root, no client | none |
+| `fullstack-single` | the SSR shape: server-rendered page + same-origin API, no `index.html` | none |
+| `fullstack-monorepo` | the split shape: root server + `apps/website` + proxy chain | none (the root server is the target) |
+| `backend-monorepo` | a backend workspace: the root is the server, `apps/` deleted, placeholder kept | none |
+| `frontend-monorepo` | a frontend workspace: shell root + `apps/website`, placeholder deleted | `__STUB_PORT__` (the app proxies to it) |
+
+The two placeholder branches are run once each, in different profiles: `backend-monorepo` keeps
+`packages/utils` (so its own skeleton, config and build are asserted) and `frontend-monorepo`
+deletes it (so the layout-only answer is asserted). The split shape keeps it too; its `no` branch
+is the one combination no profile runs, and the guide says so.

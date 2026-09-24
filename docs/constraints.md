@@ -64,6 +64,8 @@
 21. ⚠️ 同一个名字**不能**同时是根 task 和根 `package.json` script：`vp run` 会报 `Failed to load task graph / Task … conflicts with a package.json script`，并**毒化整个工作区的 `vp run`**。
 22. ⚠️ library 包（tsdown）不能用内置 `vp build`：`[UNRESOLVED_ENTRY] Cannot resolve entry module index.html`——它自己的脚本是 `vp pack`；改用 `vp run -r build`（跑脚本）或 `vpr build`。
 23. ⚠️ 根 `dev` 脚本里引用 `pkg#task` 时，若该包被删除或改名，脚本会**静默变成 no-op**（rc=0、`0/0 cache hit`）——改名后必须重指。
+    - ✅ **已由指南与 harness 双向守住（#6）**：`workspace-skeleton` 把根命令整组重写并拒绝任何 `vp run <pkg>#<task>` 形式的 script；`assert.mjs` 对**每个 manifest 的每条 script** 断言该形式不存在；harness 的反向控制把模板那条 `"dev": "vp run website#dev"` 种回根 manifest，要求 assert **拒绝并点名**这个形状。`backend/monorepo` 另外用"清空 `dist` 后 `vp run --no-cache -r -v build` 必须重新产出 `dist/server/index.mjs`"证明重指后的命令不是空操作。
+    - ⚠️ 顺带实测（#6）：根 script 自引用（根 `build: "vp run -r build"`）不会递归或挂死，而是 rc=0 + `0/0 cache hit` —— 即**根自己那一条被剪掉**。因此壳根（`frontend/monorepo`）**不**注册根的 `build`，workspace 构建以 `vp run -r build` 写在文档与 `ready` 里。
 24. 📌 新增子包后 `vp install` 在 CI 下会因 frozen-lockfile 失败（`ERR_PNPM_PACKAGE_MANAGER_NO_IMPORTER`）；用 `pnpm --filter ./<pkg> add -D <dep>`。⚠️ 在 `catalogMode: prefer` 下它会把版本写进**根 catalog**，包内只留 `"<dep>": "catalog:"`。
 
 25. 📌 **根级服务端必须设 `defaultPackage: "."`**（根 `vite.config.ts`）。Vite+ 有工作区根守卫：`vp dev`/`vp build`/`vp preview`/`vp pack` **不会静默作用在根上**，裸跑报 ``error: `vp dev` at the workspace root needs a target package.`` rc=1。设了之后打印 `note: … using . (defaultPackage in vite.config.ts)`，服务端端口是 Nitro 默认的 **3000**（不是 5173）。守卫只在存在成员包时触发。
@@ -108,10 +110,11 @@
 
     | 形态 | `.env` + 代理 | 代理目标 |
     |---|---|---|
-    | 纯前端 | 要（项目根） | **决策点**：问用户后端 API 地址（默认占位 `http://127.0.0.1:3000`） |
+    | 纯前端 · 单仓 | 要（项目根） | **决策点**：问用户后端 API 地址（默认占位 `http://127.0.0.1:3000`） |
+    | 纯前端 · monorepo | 要（`apps/website/`） | **决策点**：同上（壳根没有服务端可指）；配置与守卫在前端包 |
     | 全栈 · 前后分离（monorepo） | 要（`apps/website/`） | 根 Nitro 服务端 `http://127.0.0.1:3000` |
     | 全栈 · SSR（单仓） | 不要（同源） | — |
-    | 纯后端 | 不要（无前端） | — |
+    | 纯后端（两种布局） | 不要（无前端） | — |
 
     **实现**：
     - 前端包需要**新建** `vite.config.ts`（脚手架不生成）：`defineConfig(({ mode }) => …)` + `loadEnv(mode, process.cwd(), "")`（**从 `vite-plus` 导入**）+ `server.proxy = proxyTransformer(env.DEV_PROXY)`。
@@ -185,6 +188,8 @@
 - ✅ 后端单仓形态已端到端验证（`e2e/run.sh --profile backend-single`）：无全局 CLI（harness 用一个只会失败的 `vp` 挡在 PATH 最前面）、插件有可访问路由、`/api` 前缀不存在、产物在 `dist/` 且构建后静态检查仍绿、Nitro 版本显式钉住、`tests/` 在路由扫描目录之外。决策与取舍见 ADR-0007。
 - ✅ 全栈 SSR 单仓形态已端到端验证（`e2e/run.sh --profile fullstack-single`）：没有 `index.html`、没有 `src/main.tsx`、两个 SSR 入口齐备、`nitro()` 在脚手架的 `lazyPlugins` 数组里被调用、客户端入口在 `environments.client.build.rollupOptions.input` 里声明、合并后的单一 tsconfig（两个 project-reference 配置已删）、`server/routes/api/hello.ts` 同源且无代理/无 `.env`、构建同时产出 `dist/public/assets/*.js` 与 `dist/server/_ssr/ssr.mjs`；verify 在构建产物与 dev server 两条路径上断言渲染标记与同源 `/api/hello`。harness 的两个 SSR 反向控制也跑通：种 `index.html` 必须让 verify 红在形状上，移除渲染标记必须让 verify 红在 render marker 上。决策与取舍见 ADR-0008。
 - ✅ **前后分离（`fullstack` × `monorepo`）形态已端到端验证**（`e2e/run.sh --profile fullstack-monorepo`）：workspace 根是服务端（`defaultPackage: "."` + `plugins: [nitro()]`、`serverDir: "./server"`、`output: { dir: "dist" }`、`server/routes/hello.ts` 无前缀）、`apps/website` 是前端（demo 已精简、无 `check`/`test` script、页面带 smoke 标记）、catalog 承载全部版本且每个 manifest 的每个依赖都是 `catalog:` 引用（root/app/utils 的 `vite-plus` 解析同版本）、根命令 `dev:server`/`dev:website`/`check`/`test`/`build`/`ready` 全为 vp 形式、任何包的 script 里都不出现 pnpm/npm/yarn/bun、构建在根一次跑通（`vp run -r build` → `dist/server/index.mjs` + `dist/nitro.json`、`apps/website/dist`、`packages/utils/dist`，无 `.output`）、`vp check` 覆盖全工作区且 `vp run -r check` 跳过应用、dev 下从前端端口 `/api/hello` 200 JSON 且服务端看到 `/hello`。harness 的新反向控制（删 `DEV_PROXY` → verify 必须红在 `DEV_PROXY`）与 guard 的新拒绝分支（前后分离 + `react-ts`、monorepo 未答 `GUIDE_PLACEHOLDER`）都跑通。决策与取舍见 ADR-0009。
+- ✅ **后端工作区（`backend` × `monorepo`）形态已端到端验证**（`e2e/run.sh --profile backend-monorepo`）：`apps/` 整包删除（后端无客户端）、根即服务端（`defaultPackage: "."` + `plugins: [nitro()]`、`serverDir: "./server"`、`output: { dir: "dist" }`、`server/routes/hello.ts` 无前缀）、根命令 `dev:server`/`check`/`test`/`build`/`ready`（无 `dev:website`，模板那条 `"dev": "vp run website#dev"` 已删）、`vp check` 覆盖根程序（含 `server/routes/`）、`vp run -r build` 调度并构建根（→ `dist/server/index.mjs`）、dev 与构建产物两条路径上 `/hello` 200 JSON 且 `/api/hello` 404、占位子包取 `yes` 时自带骨架与配置（`package.json`/`tsconfig.json`/`vite.config.ts`/`tests/`）并产出自己的 `packages/utils/dist`。决策与取舍见 ADR-0010。
+- ✅ **前端工作区（`frontend` × `monorepo`）形态已端到端验证**（`e2e/run.sh --profile frontend-monorepo`）：根是壳（无根 `index.html`/`src/`、无 nitro 依赖、无根服务端产物）、`apps/website` 是唯一应用（demo 已精简、页面带 `Frontend works` 标记、无 `check`/`test` script）、根命令 `dev:website`/`check`/`ready`（`ready` = `vp check && vp run -r build`）、代理与守卫在前端包且目标写的是**决策答案**、`vp install`/`vp check`/`vp run -r build`（→ `apps/website/dist`）全通、从前端端口 `/api/hello` 200 JSON 且未知 `/api` 路径 404（非应用 HTML）、非 `/api` 未知路径是应用 HTML。占位子包取 `no`（`packages/utils` 与空的 `packages/` 都删除，与 `GUIDE_PLACEHOLDER=yes` 分支合起来两支各跑一次）。决策与取舍见 ADR-0010。
 - ⚠️ 目标目录必须**完全为空**（`vp create` 拒绝非空目录，也不接受已有的 `.git`）。
 - ✅ **SSR 形状定案：删 `index.html`**（官方 `examples/vite-ssr-react` 的布局）。两种形状都实测可行，但保留模板（靠 `<!--ssr-outlet-->` 注释接通）的那种缺注释时会**静默**退化为纯客户端壳：SSR 入口照样被探测、照样打日志（`Using \`src/entry-server.tsx\` as vite ssr entry.`）、`/` 返回客户端壳、**无警告、exit 0**（"探测 ≠ 渲染"，Round 5 的最坏失败形状）。删掉模板后插件安装内置 renderer，SSR 入口的 `Response` 原样透传（status/headers/body 都属于入口）——成因被消除，而不是被守卫。骨架页带固定渲染标记，verify 断言"标记存在"而非 200；harness 的反向控制种一个没有 outlet 的 `index.html`，退化后的构建**不再产出 `_ssr/`**，于是 verify 红在形状上（渲染标记是它后面那一层），另一个反向控制专门移除渲染标记来证明标记断言本身会红。取舍见 ADR-0008。
 - ⚠️ 形状不可混用：整文档入口 + 带 outlet 的模板 ⇒ 文档被忽略、body 被塞进模板（嵌套 `<html>`）。

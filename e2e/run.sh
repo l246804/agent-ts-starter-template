@@ -14,12 +14,14 @@
 #   5. runs e2e/assert.mjs for the external-behaviour checks the guide itself does
 #      not make (file tree, document placement, skills lockfile agreement)
 #   6. runs the negative controls: the preflight must refuse a non-empty target and an old
-#      Node, the profile guard must refuse an unimplemented answer without writing anything,
-#      the route-scan assertion must catch a test file planted next to the routes, the
-#      verify block must go red on a planted type error, the split shape's missing proxy
-#      config must fail loudly instead of serving the app's HTML, and — in the SSR profile
-#      — a planted index.html must stop being a silent client-shell degradation and a removed
-#      render mark must be what the smoke notices.
+#      Node, the profile guard must refuse an unimplemented mode and every base it does not
+#      re-scaffold without writing anything, the route-scan assertion must catch a test file
+#      planted next to the routes, a workspace whose root script names a missing package must
+#      be caught as the silent no-op it is, the verify block must go red on a planted type
+#      error, the proxy-bearing profiles' missing DEV_PROXY config must fail loudly instead
+#      of serving the app's HTML, and — in the SSR profile — a planted index.html must stop
+#      being a silent client-shell degradation and a removed render mark must be what the
+#      smoke notices.
 #
 # What it is NOT: a replacement for an agent reading GUIDE.md. The guide's decision
 # points are pre-answered here, and the parts that need judgement are listed in
@@ -219,9 +221,9 @@ FAKE
   # framework the SSR shape cannot render and hydrate, a split shape asked for a base it does not
   # re-scaffold, and a monorepo without its placeholder answer. Each must fail without writing
   # anything into the (empty) target it is pointed at.
-  if (cd "$old_target" && GUIDE_MODE=frontend GUIDE_LAYOUT=monorepo bash "$PLAN/$guard") > "$LOGS/neg-guard-profile.log" 2>&1; then
+  if (cd "$old_target" && GUIDE_MODE=desktop GUIDE_LAYOUT=single bash "$PLAN/$guard") > "$LOGS/neg-guard-profile.log" 2>&1; then
     cat "$LOGS/neg-guard-profile.log"
-    die "the profile guard accepted mode=frontend layout=monorepo"
+    die "the profile guard accepted mode=desktop"
   fi
   if (cd "$old_target" && GUIDE_MODE=backend GUIDE_LAYOUT=single GUIDE_FRAMEWORK=react-ts bash "$PLAN/$guard") > "$LOGS/neg-guard-framework.log" 2>&1; then
     cat "$LOGS/neg-guard-framework.log"
@@ -235,6 +237,16 @@ FAKE
     cat "$LOGS/neg-guard-split-base.log"
     die "the profile guard accepted a split project on a base the monorepo template does not write"
   fi
+  # Neither of the other two monorepo profiles re-scaffolds the template's app either, so a
+  # framework answer is refused before anything is written rather than half-built.
+  if (cd "$old_target" && GUIDE_MODE=backend GUIDE_LAYOUT=monorepo GUIDE_FRAMEWORK=react-ts GUIDE_PLACEHOLDER=yes bash "$PLAN/$guard") > "$LOGS/neg-guard-backend-mono-base.log" 2>&1; then
+    cat "$LOGS/neg-guard-backend-mono-base.log"
+    die "the profile guard accepted a backend workspace on a base it cannot prune"
+  fi
+  if (cd "$old_target" && GUIDE_MODE=frontend GUIDE_LAYOUT=monorepo GUIDE_FRAMEWORK=react-ts GUIDE_PLACEHOLDER=yes bash "$PLAN/$guard") > "$LOGS/neg-guard-frontend-mono-base.log" 2>&1; then
+    cat "$LOGS/neg-guard-frontend-mono-base.log"
+    die "the profile guard accepted a frontend workspace on a base the monorepo template does not write"
+  fi
   # The profiles' answers are exported in this shell, so a control that needs an answer *absent*
   # has to say so: an empty assignment is what "not answered" means here.
   if (cd "$old_target" && GUIDE_MODE=fullstack GUIDE_LAYOUT=monorepo GUIDE_FRAMEWORK=vanilla-ts GUIDE_PLACEHOLDER= bash "$PLAN/$guard") > "$LOGS/neg-guard-placeholder.log" 2>&1; then
@@ -245,15 +257,20 @@ FAKE
   grep -q 'vanilla-ts' "$LOGS/neg-guard-framework.log" || die "the framework refusal does not name the base it wants"
   grep -q 'react-ts' "$LOGS/neg-guard-ssr-base.log" || die "the SSR base refusal does not name the base it wants"
   grep -q 'vanilla-ts' "$LOGS/neg-guard-split-base.log" || die "the split base refusal does not name the base the monorepo template writes"
+  grep -q 'vanilla-ts' "$LOGS/neg-guard-backend-mono-base.log" || die "the backend-workspace refusal does not name the base it wants"
+  grep -q 'vanilla-ts' "$LOGS/neg-guard-frontend-mono-base.log" || die "the frontend-workspace refusal does not name the base it wants"
   grep -q 'GUIDE_PLACEHOLDER' "$LOGS/neg-guard-placeholder.log" || die "the placeholder refusal does not name the answer it needs"
-  echo "  refused frontend/monorepo, backend + react-ts, fullstack SSR + vanilla-ts, split + react-ts, monorepo without GUIDE_PLACEHOLDER"
+  echo "  refused desktop/single, backend + react-ts, fullstack SSR + vanilla-ts, split + react-ts, backend workspace + react-ts, frontend workspace + react-ts, monorepo without GUIDE_PLACEHOLDER"
 
   say "negative control: the verify block goes red on a planted type error"
-  # The plant goes where this profile's source lives: a frontend has src/, a backend has server/
-  # (its client is pruned), and a profile with neither is a plan this control does not know.
+  # The plant goes where this profile's source lives: a single frontend has src/, every server shape
+  # has server/, and a frontend workspace's source is the app package.
   local plant_dir
-  if [ -d "$TARGET/src" ]; then plant_dir=src; elif [ -d "$TARGET/server" ]; then plant_dir=server; else
-    die "cannot plant a type error: neither src/ nor server/ exists in $TARGET"
+  if [ -d "$TARGET/apps/website/src" ]; then plant_dir=apps/website/src
+  elif [ -d "$TARGET/src" ]; then plant_dir=src
+  elif [ -d "$TARGET/server" ]; then plant_dir=server
+  else
+    die "cannot plant a type error: none of apps/website/src, src/ or server/ exists in $TARGET"
   fi
   local planted="$TARGET/$plant_dir/__e2e_planted.ts"
   printf 'export const planted: number = "not a number";\n' > "$planted"
@@ -264,16 +281,46 @@ FAKE
   rm -f "$planted"
   echo "  verify failed as it must (see $LOGS/neg-verify-red.log)"
 
-  # The split shape's silent failure, made to happen on purpose. `proxyTransformer` returns an
+  # A root script that names a package by its task is the form this guide's root commands are
+  # re-pointed to avoid: in the arrangement that deletes the package, that script exits 0 and runs
+  # nothing. A fresh project has no such script, so the rule is made to fail here on purpose — the
+  # template's own `dev` script is planted back, and assert.mjs has to reject it and name the rule.
+  # (In the two workspaces that still have `website` the same plant proves the form ban rather than
+  # the deletion; both live under the same rule.)
+  if [ "${GUIDE_LAYOUT:-}" = "monorepo" ]; then
+    say "negative control: a root script naming a package is caught by the package-name rule"
+    local root_manifest="$TARGET/package.json"
+    cp "$root_manifest" "$RUN_DIR/negative/package.json.bak"
+    node -e '
+      const fs = require("node:fs");
+      const path = process.argv[1];
+      const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+      manifest.scripts.dev = "vp run website#dev";
+      fs.writeFileSync(path, JSON.stringify(manifest, null, 2) + "\n");
+    ' "$root_manifest"
+    if node "$E2E_DIR/assert.mjs" --target "$TARGET" --answers "$ANSWERS_FILE" > "$LOGS/neg-package-script.log" 2>&1; then
+      cp "$RUN_DIR/negative/package.json.bak" "$root_manifest"
+      die "assert.mjs accepted a root script naming a package by its task — the package-name rule cannot fail"
+    fi
+    cp "$RUN_DIR/negative/package.json.bak" "$root_manifest"
+    grep -q 'silent no-op' "$LOGS/neg-package-script.log" || {
+      tail -5 "$LOGS/neg-package-script.log"
+      die "assert.mjs failed with the planted script, but not on the package-name rule (see $LOGS/neg-package-script.log)"
+    }
+    echo "  refused, and named the silent no-op a missing package would make of it (see $LOGS/neg-package-script.log)"
+  fi
+
+  # The proxy's silent failure, made to happen on purpose. `proxyTransformer` returns an
   # empty config for a missing variable — the dev server starts, `/api/*` answers 200 with the
   # app's HTML, and the log says nothing — so the guide's guard exists to make that state loud.
   # The control removes the variable from the app's committed `.env` and requires the verify block
   # to go red naming it: a green run there would mean the failure mode is silent again.
-  # It belongs to the split profile, decided by the profile's answers rather than by what the
-  # target happens to contain — the same rule every accommodation here follows.
-  if [ "${GUIDE_MODE:-}" = "fullstack" ] && [ "${GUIDE_LAYOUT:-}" = "monorepo" ]; then
+  # It belongs to the profiles that have a proxy in the frontend package, decided by the profile's
+  # answers rather than by what the target happens to contain — the same rule every accommodation
+  # here follows.
+  if [ "${GUIDE_LAYOUT:-}" = "monorepo" ] && { [ "${GUIDE_MODE:-}" = "fullstack" ] || [ "${GUIDE_MODE:-}" = "frontend" ]; }; then
     [ -f "$TARGET/apps/website/.env" ] \
-      || die "the fullstack/monorepo profile produced no apps/website/.env, so its negative control cannot run"
+      || die "the $GUIDE_MODE/monorepo profile produced no apps/website/.env, so its negative control cannot run"
     say "negative control: a missing DEV_PROXY fails loudly instead of serving the app's HTML"
     cp "$TARGET/apps/website/.env" "$RUN_DIR/negative/website-env.bak"
     grep -v '^DEV_PROXY' "$RUN_DIR/negative/website-env.bak" > "$TARGET/apps/website/.env"

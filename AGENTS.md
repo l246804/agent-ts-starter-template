@@ -5,10 +5,10 @@
 `GUIDE.md` is this repo's only product: a guide an agent executes inside an empty directory.
 It carries machine-extractable step markers (`guide:exec`, `guide:file`, `guide:verify`), and
 `bash e2e/run.sh` extracts and runs them from scratch — the guide's own verify block is the
-assertion set. Run it after changing `GUIDE.md`; it needs network and takes minutes. It has four
+assertion set. Run it after changing `GUIDE.md`; it needs network and takes minutes. It has six
 supported profiles, `--profile frontend-single`, `--profile backend-single`,
-`--profile fullstack-single` and `--profile fullstack-monorepo`; a change to the guide is only
-proven when all four have been run.
+`--profile fullstack-single`, `--profile fullstack-monorepo`, `--profile backend-monorepo` and
+`--profile frontend-monorepo`; a change to the guide is only proven when all six have been run.
 See `e2e/README.md` for what the harness does and does not prove.
 
 ## Agent skills

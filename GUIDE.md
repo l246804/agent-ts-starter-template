@@ -4,10 +4,11 @@ This guide is written for an agent (or a careful human) to execute **inside an e
 directory**. Every command is non-interactive, every version is pinned explicitly, no global
 tool is installed, and the toolchain lives in the project. At the end the project proves
 itself: format, static check, build script, tests when the profile has them, and a smoke test
-of what the mode actually serves — the dev proxy's route in a frontend project, the server's
-own route plus the built artefact in a backend one, the workspace root server plus the proxy
-chain that reaches it from the frontend's port in a split one, and the server-rendered page
-plus the same-origin API in an SSR one.
+of what the arrangement actually serves — the dev proxy's route in a frontend project, the
+server's own route plus the built artefact in a backend one, the workspace root server plus the
+proxy chain that reaches it from the frontend's port in a split one, the server-rendered page
+plus the same-origin API in an SSR one, the root server alone in a backend workspace, and the
+app's page plus its proxy in a frontend workspace.
 
 Two properties are deliberate, because this project exists to prevent them:
 
@@ -25,7 +26,9 @@ Two properties are deliberate, because this project exists to prevent them:
 | `backend` | `single` | **Implemented and E2E-verified** (pnpm): a Nitro v3 server at the project root, as a Vite plugin, with no client |
 | `fullstack` | `single` | **Implemented and E2E-verified** (pnpm + `react-ts`): the SSR shape — server-side rendering and the same-origin API in one project |
 | `fullstack` | `monorepo` | **Implemented and E2E-verified** (pnpm + the scaffold's `vanilla-ts` app): the split shape — the workspace root hosts the Nitro server, `apps/website` is the frontend, and the dev proxy reproduces the production reverse proxy |
-| `frontend` or `backend` in any other layout | Not implemented yet — the guide stops at the profile guard and tells you so |
+| `backend` | `monorepo` | **Implemented and E2E-verified** (pnpm): a workspace whose root *is* the server and whose only other package is the layout's placeholder decision — the client the template writes is deleted in the same run |
+| `frontend` | `monorepo` | **Implemented and E2E-verified** (pnpm): a workspace whose root is a shell and whose app is `apps/website`, reaching an external backend through the app's dev proxy |
+| any other combination | Not implemented — the guide stops at the profile guard and tells you so |
 
 `backend/single` initializes a project whose only artefact is a server: the client that `vp create`
 scaffolds is deleted in the same run, `server/` holds the routes and sits at the project root, the
@@ -57,13 +60,43 @@ them. The placeholder package `vp create vite:monorepo` ships (`packages/utils`)
 point: keep it as the home for future shared code, or delete it — the layout is the same either
 way, and the workspace-wide commands are what make either shape work.
 
+`backend/monorepo` is the **backend in a workspace**: the same server the single layout builds — Nitro v3
+as a Vite plugin at the root, `serverDir: "./server"`, `output: { dir: "dist" }`, routes without an
+`/api` prefix — inside the monorepo template instead of a single project. Two things make it a
+different shape rather than the same one rearranged. The **client the template writes goes**: a
+backend project has no frontend, so `apps/website` is deleted and the workspace's other package is
+the layout's placeholder decision (`packages/utils`, kept or deleted). And the **root commands are
+re-pointed at what actually exists**: the template's `"dev": "vp run website#dev"` names a package
+that no longer exists, and a root script naming a missing package is a **silent no-op** — measured:
+`vp run website#dev` exits 0 with `0/0 cache hit` and does nothing. The guide replaces that script
+set with `dev:server`, `check`, `test`, `build` and `ready`, and verification proves the
+replacement is not a no-op by building the workspace with `vp run -r build` and requiring the
+root's `dist/server/index.mjs` to come out of it.
+
+`frontend/monorepo` is the **frontend in a workspace**: the root is a shell that owns the catalog
+and the commands, and `apps/website` — the app the monorepo template writes — is the application.
+There is no server anywhere in it, and the app's backend is somebody else's, so the dev proxy is a
+**decision**, exactly as in the single layout: `GUIDE_DEV_PROXY` names the backend, offered with
+the placeholder `http://127.0.0.1:3000` when nothing better is known. The proxy config lives in the
+package that has the dev server (`apps/website/vite.config.ts` + `apps/website/.env`), and
+verification smokes the app from the app's own port through that proxy.
+
+Because both new shapes are workspaces, the placeholder package (`packages/utils`) is a decision in
+all three monorepo profiles: keep it as the home for future shared code, or delete it. Keeping it
+means keeping its own skeleton and configuration (its manifest, tsconfig, Vite config, source and
+test) — pruned of the library starter's publishing shape, with its versions moved into the
+workspace catalog.
+
 Two branches are written from the research but **not exercised by this revision's harness**:
 `GUIDE_TNB=yes` (the TypeScript 6 API bridge, needed by `vue-ts`/`svelte-ts`), every package
 manager other than `pnpm`, every SSR base other than `react-ts` — the SSR entry is framework
 code, so the guard refuses those before writing anything rather than generating a project whose
 renderer cannot work — every split-shape app base other than the `vanilla-ts` app the monorepo
-template writes, and `GUIDE_PLACEHOLDER=no` (the workspace with the scaffolded `packages/utils`
-deleted). Treat a green run there as unproven until it has been run once.
+template writes, every monorepo app base other than that same app, and the placeholder answer the
+harness does not take in that profile (`GUIDE_PLACEHOLDER=no` is the one the split profile does not
+exercise; `backend/monorepo` runs `yes` and `frontend/monorepo` runs `no`, so both branches of the
+decision are run once each, in different profiles). Treat a green run in an unexercised branch as
+unproven until it has been run once.
 
 The phase skeleton below (preflight → decisions → initialize → skills → documents → verify →
 handoff) is the structure every profile fills in; the profile guard keeps unimplemented
@@ -95,18 +128,18 @@ directory, so the document and the test can never drift into two truths.
 
 The guide stops at five decision points: mode/layout/framework/package manager, versions (which
 include the server foundation in the modes that have one), the dev-proxy target (`frontend` mode
-only — the split shape's target is its own workspace root server, so it is written rather than
-asked for), whether to keep the monorepo layout's placeholder package, and whether to run the
-skills setup now. Ask them, then record the answers as environment
+only, in both layouts — the split shape's target is its own workspace root server, so it is written
+rather than asked for), whether to keep the monorepo layout's placeholder package, and whether to
+run the skills setup now. Ask them, then record the answers as environment
 variables; every step below fails loudly if an answer it needs is missing. That is also what makes
 an unattended run possible.
 
 | Variable | Meaning | Accepted values |
 | --- | --- | --- |
 | `GUIDE_MODE` | project mode | `frontend`, `backend`, `fullstack` (this revision) |
-| `GUIDE_LAYOUT` | single repo or monorepo | `single`, `monorepo`; in `fullstack` mode the layout names the shape: `single` is SSR, `monorepo` is the split frontend/backend. `frontend` and `backend` are `single` only in this revision |
-| `GUIDE_FRAMEWORK` | create-vite template id; in `backend` mode the client is deleted, so only `vanilla-ts` — a base with no framework to unpick — is accepted, in `fullstack` SSR the entry renders a component tree, so only `react-ts` is implemented, and in the split shape the frontend app is the one the monorepo template writes (create-vite's `vanilla-ts`) | `vanilla-ts` (backend, and fullstack monorepo); `react-ts` (fullstack SSR); `react-ts`, `vue-ts`, `svelte-ts`, `solid-ts`, `preact-ts`, `lit-ts`, `vanilla-ts`, … (frontend) |
-| `GUIDE_PLACEHOLDER` | keep or delete the placeholder package the monorepo template writes (`packages/utils`, monorepo layout only) | `yes` (keep it as the home for future shared code), `no` (delete it) |
+| `GUIDE_LAYOUT` | single repo or monorepo | `single`, `monorepo`; in `fullstack` mode the layout names the shape: `single` is SSR, `monorepo` is the split frontend/backend. All three modes support both layouts |
+| `GUIDE_FRAMEWORK` | create-vite template id; in `backend` mode the client is deleted, so only `vanilla-ts` — a base with no framework to unpick — is accepted, in `fullstack` SSR the entry renders a component tree, so only `react-ts` is implemented, and in the monorepo layouts the app is the one the monorepo template writes (create-vite's `vanilla-ts`), which this revision does not re-scaffold on another base | `vanilla-ts` (backend, fullstack monorepo, frontend monorepo); `react-ts` (fullstack SSR); `react-ts`, `vue-ts`, `svelte-ts`, `solid-ts`, `preact-ts`, `lit-ts`, `vanilla-ts`, … (frontend single) |
+| `GUIDE_PLACEHOLDER` | keep or delete the placeholder package the monorepo template writes (`packages/utils`, monorepo layout only — asked when only the layout is wanted and no other package is named) | `yes` (keep it as the home for future shared code), `no` (delete it) |
 | `GUIDE_PM` | package manager | `pnpm` (verified), `npm`, `yarn`, `bun` |
 | `GUIDE_VP_VERSION` | pinned `vite-plus` | e.g. `1.0.0-rc.0` (prerelease — disclose this) |
 | `GUIDE_TS_VERSION` | pinned TypeScript line | `^7.0.2` |
@@ -114,18 +147,25 @@ an unattended run possible.
 | `GUIDE_TNB_VERSION` | pinned bridge package | `6.0.3-bridge.17.tsgo.7.0.2` |
 | `GUIDE_NITRO_VERSION` | pinned `nitro` (modes with a server) | e.g. `3.0.260903-beta` (prerelease — disclose this) |
 | `GUIDE_SKILLS_VERSION` | pinned `skills` CLI | `1.7.0` |
-| `GUIDE_DEV_PROXY` | backend the dev server proxies `/api/*` to (`frontend` mode) | e.g. `http://127.0.0.1:3000`; in the split shape this is not an answer — the target is this workspace's own root server, written from `GUIDE_DEV_PORT` |
+| `GUIDE_DEV_PROXY` | backend the dev server proxies `/api/*` to (`frontend` mode, both layouts; in the single layout it is the project's own backend, in the monorepo layout the app's) | default placeholder `http://127.0.0.1:3000` when the backend is not known yet; in the split shape this is not an answer — the target is this workspace's own root server, written from `GUIDE_DEV_PORT` |
 | `GUIDE_PROXY_SMOKE_PATH` | route the proxy smoke test calls — must exist on that backend (`frontend` mode) | e.g. `/hello` |
-| `GUIDE_DEV_PORT` | port the smoke tests use for the dev server; in the split shape the port the workspace root server binds, and therefore the port the frontend's `DEV_PROXY` points at | default `5173`; `3000` in the split shape, where the root server keeps Nitro's default and the app takes 5173 |
-| `GUIDE_WEBSITE_PORT` | port the frontend app's dev server binds (split shape only) | default `5173` |
+| `GUIDE_DEV_PORT` | port the smoke tests use for the dev server; in the monorepo layouts whose root is a server, the port that server binds, and therefore the port the split shape's `DEV_PROXY` points at | default `5173`; `3000` in the monorepo layouts, where a root server keeps Nitro's default and an app takes 5173 |
+| `GUIDE_WEBSITE_PORT` | port the frontend app's dev server binds (monorepo layouts with an app: the split shape and `frontend` × `monorepo`) | default `5173` |
 | `GUIDE_SETUP` | run the skills setup now? | `no` in unattended runs (see Phase 4.5) |
 
 An answer that only one mode reads is only needed in that mode: the steps that read it are the
 same steps the mode gates, so a `backend` run never needs `GUIDE_DEV_PROXY` and a `frontend` run
 never needs `GUIDE_NITRO_VERSION`. In the SSR shape neither the proxy nor its smoke path is
-answered — the page and the API are the same origin, which is also why no `.env` is written. The
-split shape answers `GUIDE_WEBSITE_PORT` and `GUIDE_PLACEHOLDER` instead of `GUIDE_DEV_PROXY`: its
-proxy target is the workspace's own root server rather than someone else's backend.
+answered — the page and the API are the same origin, which is also why no `.env` is written. In the
+monorepo layout every mode answers `GUIDE_PLACEHOLDER`, because that is the layout asking about the
+package the mode did not; a single-layout run never answers it. The split shape answers
+`GUIDE_WEBSITE_PORT` and `GUIDE_PLACEHOLDER` instead of `GUIDE_DEV_PROXY`: its proxy target is the workspace's own root
+server rather than someone else's backend.
+
+The dev-proxy target is the one answer with a **default placeholder**. A frontend's backend is
+somebody else's, and it may not exist yet; leaving the default writes a proxy that answers `502`
+until it does — which is the loud half of "there is no backend there", never an HTML `200`. Say
+plainly what the placeholder is, and ask for the real address when it is known.
 
 If the user has pre-answered everything, export the whole table and the run needs no further
 input.
@@ -203,13 +243,17 @@ fi
 Ask these together, then stop asking:
 
 - **Mode** — which kind of project: a pure frontend, a backend, or a fullstack project. This
-  revision implements all three; `frontend` and `backend` only in the `single` layout, `fullstack`
-  in both — other combinations are refused by the guard below rather than half-built.
+  revision implements all three, in both layouts; the guard below refuses anything else rather
+  than half-building it.
 - **Layout** — single repository or monorepo. Layout is orthogonal to mode: a monorepo is a
   way of arranging a mode, never a fourth mode. In **`fullstack` mode the layout is the shape
   decision**: `single` is the SSR shape (one project, one origin, no proxy), while `monorepo` is
   the split frontend/backend shape — the workspace root hosts the server, `apps/website` is the
-  frontend, and a dev proxy stands in for the production reverse proxy. Both are implemented.
+  frontend, and a dev proxy stands in for the production reverse proxy. Both are implemented. In
+  the other two modes the layout is only the layout: `backend` puts the same server at the
+  workspace root (the template's app is deleted, and the placeholder decision is the workspace's
+  other package), and `frontend` puts the same app in `apps/website` under a workspace root that
+  owns the catalog and the commands.
 - **Framework** — for a frontend, which create-vite TypeScript template; it decides the
   dependencies, the config, and the entry point that the generator writes. A `backend` project
   has no framework: the guide still scaffolds a client base, because every mode starts from the
@@ -218,7 +262,7 @@ Ask these together, then stop asking:
   have to unpick. The guard below refuses anything else before a file is written. The SSR shape
   is the mirror image: it renders a component tree on the server and hydrates it in the browser,
   so it needs a framework base rather than a plain one, and this revision implements the entry
-  for `react-ts` only. The split shape takes its frontend from the monorepo template itself
+  for `react-ts` only. The monorepo layouts take their app from the monorepo template itself
   (create-vite's `vanilla-ts` app in `apps/website`), so `vanilla-ts` is the only answer there —
   this revision does not re-scaffold the app on another base.
 - **Placeholder package** — monorepo layout only: the monorepo template writes a second package,
@@ -239,23 +283,38 @@ Record the answers as `GUIDE_MODE`, `GUIDE_LAYOUT`, `GUIDE_FRAMEWORK`, `GUIDE_PL
 set -euo pipefail
 : "${GUIDE_MODE:?Phase 1 must answer GUIDE_MODE}"
 : "${GUIDE_LAYOUT:?Phase 1 must answer GUIDE_LAYOUT}"
+
+# The monorepo layouts do not choose a base: their app is the one `vp create vite:monorepo`
+# writes (create-vite's vanilla-ts template, in apps/website), and this revision does not
+# re-scaffold it on another framework. A backend project in either layout answers vanilla-ts for a
+# different reason: it deletes the client the generator writes, so all the base has to be is a
+# base — a framework template writes its own `plugins` array (which the backend wiring would have
+# to unpick) and dependencies nothing in the project uses. Both cases are refusals rather than
+# warnings: a mismatched base is discovered after the whole project exists.
+require_vanilla_base() {  # require_vanilla_base <why>
+  case "${GUIDE_FRAMEWORK:-}" in
+    vanilla-ts) : ;;
+    *)
+      printf '%s\n' "$1" >&2
+      printf 'Answer GUIDE_FRAMEWORK=vanilla-ts, or stop and report — nothing has been written.\n' >&2
+      exit 1
+      ;;
+  esac
+}
+
 case "$GUIDE_MODE/$GUIDE_LAYOUT" in
   frontend/single) echo "ok  profile frontend/single" ;;
+  frontend/monorepo)
+    require_vanilla_base "the monorepo template writes the app from create-vite's vanilla-ts template, and this revision does not re-scaffold it; ${GUIDE_FRAMEWORK:-<unanswered>} is not available here."
+    echo "ok  profile frontend/monorepo (workspace shell at the root, apps/website is the app)"
+    ;;
   backend/single)
-    # A backend project deletes the client the generator writes, so all the base has to be is a
-    # base. A framework template is not one: create-vite's react-ts, for instance, writes its own
-    # `plugins` array (which the backend wiring below would have to unpick) and dependencies
-    # nothing in this project uses. Refusing it here costs one answer; discovering it after the
-    # prune costs the run.
-    case "${GUIDE_FRAMEWORK:-}" in
-      vanilla-ts) echo "ok  profile backend/single (base template vanilla-ts, pruned below)" ;;
-      *)
-        printf 'backend mode scaffolds the vanilla-ts base and deletes its client; %s is not a base this profile can prune.\n' \
-          "${GUIDE_FRAMEWORK:-<unanswered>}" >&2
-        printf 'Answer GUIDE_FRAMEWORK=vanilla-ts, or stop and report — nothing has been written.\n' >&2
-        exit 1
-        ;;
-    esac
+    require_vanilla_base "backend mode scaffolds the vanilla-ts base and deletes its client; ${GUIDE_FRAMEWORK:-<unanswered>} is not a base this profile can prune."
+    echo "ok  profile backend/single (base template vanilla-ts, pruned below)"
+    ;;
+  backend/monorepo)
+    require_vanilla_base "backend mode scaffolds the vanilla-ts base and deletes the client it writes — apps/website included; ${GUIDE_FRAMEWORK:-<unanswered>} is not a base this profile can prune."
+    echo "ok  profile backend/monorepo (workspace root is the server, the template's app is deleted)"
     ;;
   fullstack/single)
     # The SSR shape is the opposite requirement: it renders a component tree on the server and
@@ -280,39 +339,32 @@ case "$GUIDE_MODE/$GUIDE_LAYOUT" in
     esac
     ;;
   fullstack/monorepo)
-    # The split shape does not choose a base: its frontend is the app the monorepo template
-    # writes (create-vite's vanilla-ts template, in apps/website), and the server is the workspace
-    # root itself. Re-scaffolding that app on another framework is not this revision's work, so an
-    # answer that asks for one is refused before anything is written — a mismatched base would
-    # otherwise be discovered after the whole workspace existed.
-    case "${GUIDE_FRAMEWORK:-}" in
-      vanilla-ts) echo "ok  profile fullstack/monorepo (split shape: server at the workspace root, apps/website is the frontend)" ;;
-      *)
-        printf 'the monorepo template writes the frontend app from create-vite %s template, and this revision does not re-scaffold it; %s is not available here.\n' \
-          "vanilla-ts's" "${GUIDE_FRAMEWORK:-<unanswered>}" >&2
-        printf 'Answer GUIDE_FRAMEWORK=vanilla-ts, or stop and report — nothing has been written.\n' >&2
-        exit 1
-        ;;
-    esac
-    # The placeholder decision is the layout's own: the template ships `packages/utils`, and
-    # keeping or deleting it changes what the workspace-wide commands have to run. It is read
-    # with a default so that the other profiles never have to answer it, and required here.
-    case "${GUIDE_PLACEHOLDER:-}" in
-      yes|no) echo "ok  placeholder package packages/utils: ${GUIDE_PLACEHOLDER:-}" ;;
-      *)
-        printf 'the monorepo layout must answer GUIDE_PLACEHOLDER: keep the scaffolded packages/utils (yes) or delete it (no).\n' >&2
-        printf 'Stop here and report — nothing has been written.\n' >&2
-        exit 1
-        ;;
-    esac
+    require_vanilla_base "the monorepo template writes the frontend app from create-vite's vanilla-ts template, and this revision does not re-scaffold it; ${GUIDE_FRAMEWORK:-<unanswered>} is not available here."
+    echo "ok  profile fullstack/monorepo (split shape: server at the workspace root, apps/website is the frontend)"
     ;;
   *)
-    printf 'this revision implements the frontend/single, backend/single, fullstack/single and fullstack/monorepo profiles; asked for %s/%s.\n' \
+    printf 'this revision implements frontend/single, frontend/monorepo, backend/single, backend/monorepo, fullstack/single and fullstack/monorepo; asked for %s/%s.\n' \
       "$GUIDE_MODE" "$GUIDE_LAYOUT" >&2
     printf 'Stop here and report — do not improvise a partially generated project.\n' >&2
     exit 1
     ;;
 esac
+
+# The placeholder decision is the layout's own, in every mode: the template ships
+# `packages/utils`, and keeping or deleting it changes what the workspace-wide commands have to
+# run. It is read with a default so that the single layouts never have to answer it, and required
+# here — an unanswered question would otherwise be resolved by whatever the scaffold happened to
+# write.
+if [ "$GUIDE_LAYOUT" = monorepo ]; then
+  case "${GUIDE_PLACEHOLDER:-}" in
+    yes|no) echo "ok  placeholder package packages/utils: ${GUIDE_PLACEHOLDER:-}" ;;
+    *)
+      printf 'the monorepo layout must answer GUIDE_PLACEHOLDER: keep the scaffolded packages/utils (yes) or delete it (no).\n' >&2
+      printf 'Stop here and report — nothing has been written.\n' >&2
+      exit 1
+      ;;
+  esac
+fi
 ```
 
 ## Phase 2 — Decision point: versions
@@ -440,10 +492,11 @@ three different files, and nothing goes red. The `types` branch must be first: T
 resolves an `imports` target exactly and never probes extensions, so without it every
 extensionless `#/…` import is a `TS2307` while dev and build stay green.
 
-In a monorepo the map is per package, because `imports` resolves against the nearest
-`package.json`: the root's map covers the server's files (`#/server/…`), and the frontend app
-gets its own in the shape's step below (`#/src/…` inside `apps/website`). A package without a map
-simply has no alias — which is the honest state, not a broken one.
+In a workspace the map is per package, because `imports` resolves against the nearest
+`package.json`: the root's map covers the root's own files, and every package the layout has gets
+its own map for its own files — which packages those are is the arrangement's, and the steps below
+write each one's. A package without a map simply has no alias — which is the honest state, not a
+broken one.
 
 ```bash guide:exec id=manifest
 set -euo pipefail
@@ -519,7 +572,7 @@ grep -q 'typescript-native-bridge' pnpm-workspace.yaml
 echo "ok  catalog and overrides both point at the TypeScript 6 API bridge"
 ```
 
-### Leave each project's TypeScript layout alone (frontend modes, and the split shape's two programs)
+### Leave each project's TypeScript layout alone (frontend modes, and the workspace layouts' programs)
 
 A frontend mode keeps the tsconfig layout the generator wrote, because that is the layout the
 template's own build script (`tsc -b`) expects: create-vite's framework templates split the
@@ -531,12 +584,14 @@ where the browser half is part of a server program too. One config extending `ni
 the layout that was proven to work; the backend section and the SSR section at the end of this
 phase are that layout.
 
-The split shape is the case where that reasoning inverts rather than extends: its server and its
-frontend are **two packages with two programs**, each keeping the tsconfig its own generator
-wrote (`nitro.config.ts` belongs to the root, whose program the scaffold's `tsconfig.json`
-already describes; the app keeps create-vite's `tsconfig.json`). Merging them would erase the
-package boundary the layout exists for — and the root check still type-checks both, because
-`vp check` walks every package's program, which is asserted where this shape is built.
+The workspace layout is the case where that reasoning inverts rather than extends: every package
+keeps the program its own generator wrote — the root keeps the scaffold's `tsconfig.json`, whose
+lack of an `include` list is what already covers `server/`, `tests/`, `nitro.config.ts` and
+`vite.config.ts` when the root is the application, and `apps/website` keeps create-vite's
+`tsconfig.json`. Merging them would erase the package boundary the layout exists for — and the root
+check still type-checks both, because `vp check` walks every package's program, which is asserted
+where each arrangement is built. The one package that prunes its tsconfig is the placeholder
+package, and only its publishing shape; the file itself stays.
 
 What every mode enforces about TypeScript is negative and checkable: none of those files may
 carry an alias mechanism of its own. The alias control below proves the `imports` map is the one
@@ -622,6 +677,10 @@ TS
 vp_run fmt > /dev/null
 vp_run check
 rm -f "$probe_dir/__guide_alias_target.ts" "$probe_dir/__guide_alias_use.ts"
+# The probe directory was created for this control when the profile did not already have it.
+# Leaving an empty directory behind would put something in the project that the profile's own
+# decision says should not be there — a frontend ships no test harness, so it has no tests/.
+rmdir "$probe_dir" 2>/dev/null || true
 echo "ok  '#/...' resolves through package.json imports"
 ```
 
@@ -755,7 +814,7 @@ Three details decide whether the result is a server or a lie, and two of them fa
   below fails if a build creates `.output/` anyway, which is what a forgotten `output` key looks
   like.
 
-```bash guide:exec id=backend-skeleton when=mode:backend
+```bash guide:exec id=backend-skeleton when=mode:backend&layout:single
 set -euo pipefail
 
 # 1. the client is not part of a backend project ---------------------------------
@@ -831,7 +890,7 @@ console.log("ok  server skeleton: serverDir ./server, output dist, tests/ outsid
 NODE
 ```
 
-```bash guide:exec id=backend-manifest when=mode:backend
+```bash guide:exec id=backend-manifest when=mode:backend&layout:single
 set -euo pipefail
 : "${GUIDE_PM:?Phase 1 must answer GUIDE_PM}"
 : "${GUIDE_NITRO_VERSION:?Phase 2 must answer GUIDE_NITRO_VERSION}"
@@ -879,7 +938,7 @@ resolved=$(node -p 'require("./node_modules/nitro/package.json").version')
 echo "ok  nitro@$resolved pinned in devDependencies and installed"
 ```
 
-```bash guide:exec id=backend-plugin when=mode:backend
+```bash guide:exec id=backend-plugin when=mode:backend&layout:single
 set -euo pipefail
 
 node --input-type=module - <<'NODE'
@@ -1353,34 +1412,50 @@ echo "ok  a planted type error in server/routes/api/ was caught (TS2322)"
 echo "ok  build output: client bundles in dist/public/assets, the SSR renderer in dist/server/_ssr, no .output/"
 ```
 
-### Split mode: the server at the workspace root, the frontend under `apps/`
+### Monorepo modes: one workspace, arranged around what the mode has
 
-A split project is one workspace with two halves that deploy separately: the **root package is the
-server** (Nitro v3 as a Vite plugin, `serverDir: "./server"`, `output: { dir: "dist" }`, routes
-without an `/api` prefix) and **`apps/website` is the frontend** (the app the monorepo template
-writes, a create-vite `vanilla-ts` project). Neither half is generated from scratch here: the
-scaffold wrote both, and the work is the pruning and the wiring — the same shape of work the other
-profiles do on their single base.
+The monorepo layout means one pnpm workspace — one lockfile, one catalog of versions, and commands
+registered at the root — and the mode decides what lives in it:
 
-Four things decide whether this composition is real, and each one is a place where the wrong
-answer is quiet:
+- **`fullstack` × `monorepo` is the split shape**: the **root package is the server** (Nitro v3 as
+  a Vite plugin, `serverDir: "./server"`, `output: { dir: "dist" }`, routes without an `/api`
+  prefix) and **`apps/website` is the frontend**, the app the monorepo template writes.
+- **`backend` × `monorepo` is the same server, without a frontend**: the root is the server, the
+  app the template wrote is deleted, and the workspace's other package is the placeholder decision.
+- **`frontend` × `monorepo` is the same app under a shell root**: nothing in the workspace
+  compiles a server, the root owns the catalog and the commands, and the app's backend is somebody
+  else's — reached through the app's dev proxy.
 
-- **The root has to be a target.** Vite+ refuses to act on a workspace root that has member
-  packages: `vp dev`/`vp build` print ``error: `vp dev` at the workspace root needs a target
-  package.`` and exit 1, listing the members. `defaultPackage: "."` in the **root**
-  `vite.config.ts` is the fix (the alternative is `vp -C . dev` on every command), and the step
-  below asserts it in the file rather than trusting the patch; verification then proves what it is
-  for, by starting the root server and reading a route off it. Without the line the failure is a
-  hard stop, not a wrong output.
-- **Routes carry no `/api` prefix.** The `/api` prefix belongs to the production reverse proxy and
-  to the frontend's dev proxy, which strips it: the server sees `/hello`, and a project whose
-  routes were mounted under `server/api/` would answer `/api/hello` in dev *and* have the proxy
-  rewrite it to `/hello` — a 404 that only appears through the proxy. The route the smoke test
-  reads back its own path, so "the prefix was stripped" is an assertion rather than a claim.
+The template wrote every one of these files; the work is pruning and wiring what it wrote, the same
+shape of work the single-layout profiles do on their base. Four things decide whether the
+composition is real, and each one is a place where the wrong answer is quiet:
+
+- **A root that is an app has to be a target.** Vite+ refuses to act on a workspace root that has
+  member packages: in the two shapes whose root is a server, `vp dev`/`vp build` print
+  ``error: `vp dev` at the workspace root needs a target package.`` and exit 1, listing the
+  members. `defaultPackage: "."` in the **root** `vite.config.ts` is the fix (the alternative is
+  `vp -C . dev` on every command), and the step below asserts it in the file rather than trusting
+  the patch; verification then proves what it is for, by starting the root server and reading a
+  route off it. Without the line the failure is a hard stop, not a wrong output. A **shell root** —
+  `frontend` × `monorepo` — is not a Vite app at all: no root app command is registered for it, so
+  it needs no `defaultPackage`, and the guide does not write one.
+- **The mode does not get to leave a dead command behind.** The template's root `"dev"` script is
+  `vp run website#dev`: it names a package by its task, and a script that names a package which
+  does not exist is a **silent no-op** — measured: exit 0, `vp run: 0/0 cache hit`, nothing runs. A
+  backend workspace deletes `apps/website`, so that script must go rather than linger; every root
+  command is re-pointed at what the workspace actually has, and the step refuses to leave any
+  `vp run <package>#<task>` form in a manifest.
+- **Routes carry no `/api` prefix in the server shapes.** The `/api` prefix belongs to the
+  production reverse proxy and to the frontend's dev proxy, which strips it: the server sees
+  `/hello`, and a project whose routes were mounted under `server/api/` would answer `/api/hello`
+  in dev *and* have the proxy rewrite it to `/hello` — a 404 that only appears through the proxy.
+  The route the smoke test reads back its own path, so "the prefix was stripped" is an assertion
+  rather than a claim.
 - **Every version lives in the workspace catalog.** The scaffold already ships
   `catalogMode: prefer` and a `catalog:` block with `vite-plus`, `typescript`, `vite` (an alias for
   `@voidzero-dev/vite-plus-core`) and `@types/node`; the app and the placeholder package already
-  reference them with `"…": "catalog:"`. This step adds `nitro` to that block and rewrites the
+  reference them with `"…": "catalog:"`. This step adds `nitro` to that block **in the modes that
+  have a server**, adds the proxy transformer in the modes that have a proxy, and rewrites the
   specs that were written as literals (`typescript`, `@types/node`), so the root and every package
   resolve one version per dependency and a version is changed in exactly one place.
 - **`vp install` is the install.** In a workspace the root owns the lockfile, and the layout's
@@ -1388,19 +1463,42 @@ answer is quiet:
   same way `vp run -r` runs tasks across it. (A package manager does appear once, in the ephemeral
   `vp create` bootstrap above, because at that point there is no `vp` to call.)
 
-The commands that operate the workspace are registered in the root `package.json` — `dev:server`,
-`dev:website`, `check`, `test`, `build`, `ready` — and every one of them is `vp`-form; the stock
-`"dev": "vp run website#dev"` is replaced, because with the root as its own package it would start
-the app a second time and hide the server. For the same reason `ready` runs the root's own
-`vp test` rather than `vp run -r test`: the root's test script already scans the whole workspace,
-and each package's own test script would run the same files a second time.
+The commands that operate the workspace are registered in the root `package.json` and every one of
+them is `vp`-form. A shape whose root is a server registers `dev:server` (`vp dev`), and — when the
+app survives — `dev:website` (`vp -C apps/website dev`); a `frontend` workspace registers
+`dev:website` and nothing else app-shaped. All of them register `check` (`vp check`) and `ready`.
+The server shapes also register `test` and `build`, and their `ready` runs the root's own `vp test`
+rather than `vp run -r test`: the root's test script already scans the whole workspace, and each
+package's own test script would run the same files a second time. A `frontend` workspace registers
+no `build` of its own — the root has nothing to build — so its `ready` is `vp check && vp run -r
+build`, and the workspace build is `vp run -r build` itself. In every layout the template's stock
+`"dev": "vp run website#dev"` is gone: it would either start the app a second time and hide the
+server, or no-op against a package the mode deleted.
 
-```bash guide:exec id=workspace-skeleton when=mode:fullstack&layout:monorepo
+```bash guide:exec id=workspace-skeleton when=layout:monorepo
 set -euo pipefail
-: "${GUIDE_NITRO_VERSION:?Phase 2 must answer GUIDE_NITRO_VERSION}"
+: "${GUIDE_MODE:?Phase 1 must answer GUIDE_MODE}"
+: "${GUIDE_LAYOUT:?Phase 1 must answer GUIDE_LAYOUT}"
 : "${GUIDE_TS_VERSION:?Phase 2 must answer GUIDE_TS_VERSION}"
 : "${GUIDE_TNB:?Phase 2 must answer GUIDE_TNB}"
 : "${GUIDE_PLACEHOLDER:?Phase 1 must answer GUIDE_PLACEHOLDER}"
+
+# What this mode puts in the workspace, as the two facts every later step reads: whether a server
+# is part of it (the arrangements whose root is a Nitro app) and whether the app the template wrote
+# survives (a backend project has no client). GUIDE_NITRO_VERSION is read with a default and
+# required in the branch that needs it, because a frontend workspace never answers it — the
+# extractor requires every `$GUIDE_…` named without a default to have been answered, in every
+# profile that runs the step.
+has_server=no
+case "$GUIDE_MODE" in
+  backend|fullstack) has_server=yes ;;
+  frontend) : ;;
+  *) echo "unsupported mode: $GUIDE_MODE" >&2; exit 1 ;;
+esac
+if [ "$has_server" = yes ] && [ -z "${GUIDE_NITRO_VERSION:-}" ]; then
+  echo "GUIDE_NITRO_VERSION was never answered (Phase 2)" >&2
+  exit 1
+fi
 
 # 1. the catalog is where a version lives -----------------------------------------------
 node --input-type=module - <<'NODE'
@@ -1412,11 +1510,19 @@ if (!/^catalog:/m.test(source)) {
   console.error("pnpm-workspace.yaml has no catalog block; inspect the scaffold before continuing");
   process.exit(1);
 }
-if (/^\s+nitro:/m.test(source)) {
-  console.error("the catalog already lists nitro; inspect pnpm-workspace.yaml before continuing");
-  process.exit(1);
+
+// nitro joins the catalog in the arrangements that have a server: the root's own dependency and
+// any package that later needs it resolve the same version through this line. A frontend
+// workspace never installs it.
+if (process.env.GUIDE_MODE !== "frontend") {
+  const pin = process.env.GUIDE_NITRO_VERSION ?? "";
+  if (!pin) { console.error("GUIDE_NITRO_VERSION was never answered (Phase 2)"); process.exit(1); }
+  if (/^\s+nitro:/m.test(source)) {
+    console.error("the catalog already lists nitro; inspect pnpm-workspace.yaml before continuing");
+    process.exit(1);
+  }
+  source = source.replace(/^catalog:\n/m, `catalog:\n  nitro: ${pin}\n`);
 }
-source = source.replace(/^catalog:\n/m, `catalog:\n  nitro: ${process.env.GUIDE_NITRO_VERSION}\n`);
 
 // The scaffold ships a TypeScript line of its own; the version decision is this run's, so the
 // catalog entry is rewritten to the answer rather than left as whatever the template pinned. With
@@ -1432,37 +1538,60 @@ if (process.env.GUIDE_TNB !== "yes") {
 writeFileSync(file, source);
 NODE
 
-# 2. the root package: the server, and the commands that operate the workspace -----------
+# 2. the root package: the commands that operate the workspace, and the server's dependency -----
 node --input-type=module - <<'NODE'
 import { readFileSync, writeFileSync } from "node:fs";
+
+const mode = process.env.GUIDE_MODE;
+const hasServer = mode === "backend" || mode === "fullstack";
+// A backend project has no client, so the app the template wrote does not survive the prune below.
+const app = mode !== "backend";
 
 const manifest = JSON.parse(readFileSync("package.json", "utf8"));
 
 // The pin goes in as the catalog reference, not the literal: the catalog is the one place the
 // version lives, so the root and any package that needs nitro later resolve the same one.
-manifest.devDependencies.nitro = "catalog:";
+if (hasServer) manifest.devDependencies.nitro = "catalog:";
 
-// The commands someone actually runs, all vp-form: two dev servers, the workspace-wide
-// check/test/build, and `ready` as the one-command gate. The stock `dev` (vp run website#dev) is
-// deleted: the root is a package of its own now, and that script would start the app twice while
-// the server stayed down.
-manifest.scripts = {
-  "dev:server": "vp dev",
-  "dev:website": "vp -C apps/website dev",
-  check: "vp check",
-  test: "vp test --passWithNoTests",
-  build: "vp build",
-  ready: "vp check && vp test && vp run -r build",
-};
+// The commands someone actually runs, all vp-form, registered where the workspace is operated
+// from. The stock `dev` (vp run website#dev) is deleted in every arrangement: it names a package by
+// its task, and in the arrangement where that package is deleted it exits 0 having run nothing.
+manifest.scripts = {};
+if (hasServer) {
+  manifest.scripts["dev:server"] = "vp dev";
+  manifest.scripts.build = "vp build";
+}
+if (app) manifest.scripts["dev:website"] = "vp -C apps/website dev";
+manifest.scripts.check = "vp check";
+if (hasServer) {
+  manifest.scripts.test = "vp test --passWithNoTests";
+  // `ready` runs the root's own test rather than `vp run -r test`: the root's script already scans
+  // the whole workspace, and the `-r` form would run the same files a second time per package.
+  manifest.scripts.ready = "vp check && vp test && vp run -r build";
+} else {
+  // A frontend workspace ships no test harness of its own — the app has none by decision — and the
+  // root has nothing of its own to build, so `ready` is the check and the workspace build.
+  manifest.scripts.ready = "vp check && vp run -r build";
+}
 
 const order = ["name", "version", "private", "type", "imports", "scripts", "dependencies", "devDependencies", "devEngines", "engines"];
 const ordered = {};
 for (const key of order) if (key in manifest) ordered[key] = manifest[key];
 for (const key of Object.keys(manifest)) if (!(key in ordered)) ordered[key] = manifest[key];
 writeFileSync("package.json", JSON.stringify(ordered, null, 2) + "\n");
+console.log(`ok  root manifest: ${Object.keys(manifest.scripts).join(", ")}${hasServer ? " (root is the server)" : " (root is a shell)"}`);
 NODE
 
-# 3. the frontend app: its own alias map, and every spec through the catalog --------------
+# 3. the app the template wrote: kept and wired in two arrangements, deleted in the third -------
+if [ "$GUIDE_MODE" = backend ]; then
+  # A backend project has no client. The app is the whole client, so it goes the way src/, public/
+  # and index.html go in the single layout — and with it goes the reason the template's `dev` script
+  # existed. `apps/` is left with nothing in it, so it goes too.
+  rm -rf apps/website
+  rmdir apps 2>/dev/null || true
+  [ ! -e apps/website ] && [ ! -e apps ] || { echo "the scaffolded app survived the prune" >&2; exit 1; }
+  echo "ok  the template's frontend app is deleted (a backend project has no client)"
+else
 node --input-type=module - <<'NODE'
 import { readFileSync, writeFileSync } from "node:fs";
 
@@ -1486,13 +1615,16 @@ manifest.devDependencies = Object.fromEntries(
   Object.entries(manifest.devDependencies).sort(([a], [b]) => a.localeCompare(b)),
 );
 writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+console.log("ok  apps/website keeps its own alias map, every spec through the catalog");
 NODE
+fi
 
 # 4. the placeholder package: keep it, or delete it --------------------------------------
 case "$GUIDE_PLACEHOLDER" in
   no)
     rm -rf packages/utils
-    [ ! -e packages/utils ] || { echo "packages/utils survived the deletion" >&2; exit 1; }
+    rmdir packages 2>/dev/null || true
+    [ ! -e packages/utils ] && [ ! -e packages ] || { echo "the placeholder package survived the deletion" >&2; exit 1; }
     echo "ok  placeholder package deleted by decision"
     ;;
   yes)
@@ -1527,15 +1659,42 @@ NODE
     ;;
 esac
 
-# 5. install, then prove the versions are actually shared ---------------------------------
+# 5. no script in this workspace may name a package by its task -------------------------
+# `vp run <package>#<task>` is the template's own `dev` form: when that package does not exist the
+# script exits 0 having run nothing (measured: `vp run: 0/0 cache hit`), which is the silent no-op
+# this arrangement deletes a package into. The root's own set is written above; this covers every
+# manifest the workspace ends up with, so nothing inherited from the template can keep the form.
+node --input-type=module - <<'NODE'
+import { existsSync, readFileSync } from "node:fs";
+
+const manifests = ["package.json"];
+if (process.env.GUIDE_MODE !== "backend") manifests.push("apps/website/package.json");
+if (existsSync("packages/utils/package.json")) manifests.push("packages/utils/package.json");
+for (const file of manifests) {
+  const manifest = JSON.parse(readFileSync(file, "utf8"));
+  for (const [name, script] of Object.entries(manifest.scripts ?? {})) {
+    if (/vp\s+run\s+\S*#/.test(String(script))) {
+      console.error(`${file}: script \`${name}\` names a package (${script}); a package this workspace does not have would make it a silent no-op`);
+      process.exit(1);
+    }
+  }
+}
+console.log(`ok  no script names a package by its task (${manifests.join(", ")})`);
+NODE
+
+# 6. install, then prove the versions are actually shared ---------------------------------
 ./node_modules/.bin/vp install
 
 node --input-type=module - <<'NODE'
 import { existsSync, readFileSync } from "node:fs";
 
+const mode = process.env.GUIDE_MODE;
+const hasServer = mode === "backend" || mode === "fullstack";
+const app = mode !== "backend";
 const problems = [];
 const workspace = readFileSync("pnpm-workspace.yaml", "utf8");
-for (const name of ["vite-plus", "typescript", "nitro"]) {
+const required = ["vite-plus", "typescript", ...(hasServer ? ["nitro"] : [])];
+for (const name of required) {
   if (!new RegExp(`^\\s+"?'?${name}'?:`, "m").test(workspace)) problems.push(`${name} is not in the workspace catalog`);
 }
 
@@ -1545,7 +1704,7 @@ const entry = (name) => {
   const match = new RegExp(`^\\s+"?'?${name}'?:\\s*(.+?)\\s*$`, "m").exec(workspace);
   return match ? match[1] : "";
 };
-if (entry("nitro") !== process.env.GUIDE_NITRO_VERSION) {
+if (hasServer && entry("nitro") !== process.env.GUIDE_NITRO_VERSION) {
   problems.push(`the catalog pins nitro ${entry("nitro") || "<nothing>"}, the decision was ${process.env.GUIDE_NITRO_VERSION}`);
 }
 if (process.env.GUIDE_TNB === "yes") {
@@ -1558,7 +1717,8 @@ if (process.env.GUIDE_TNB === "yes") {
 
 // Every dependency of every manifest is a catalog reference: one version per dependency, one
 // place to change it. A literal here would be a second version that nothing else shares.
-const manifests = [["package.json", "."], ["apps/website/package.json", "apps/website"]];
+const manifests = [["package.json", "."]];
+if (app) manifests.push(["apps/website/package.json", "apps/website"]);
 if (existsSync("packages/utils/package.json")) manifests.push(["packages/utils/package.json", "packages/utils"]);
 for (const [file] of manifests) {
   const manifest = JSON.parse(readFileSync(file, "utf8"));
@@ -1577,41 +1737,57 @@ const version = (base, name) => JSON.parse(readFileSync(`${base}/node_modules/${
 const vitePlus = manifests.map(([, base]) => [base, version(base, "vite-plus")]);
 const distinct = [...new Set(vitePlus.map(([, v]) => v))];
 if (distinct.length !== 1) problems.push(`vite-plus resolves to ${distinct.join(" and ")} across the workspace`);
-const nitro = version(".", "nitro");
-if (nitro !== process.env.GUIDE_NITRO_VERSION) problems.push(`nitro resolved to ${nitro}, expected ${process.env.GUIDE_NITRO_VERSION}`);
+let nitro = "";
+if (hasServer) {
+  nitro = version(".", "nitro");
+  if (nitro !== process.env.GUIDE_NITRO_VERSION) problems.push(`nitro resolved to ${nitro}, expected ${process.env.GUIDE_NITRO_VERSION}`);
+}
 
 if (problems.length) {
   console.error("the workspace does not share one version per dependency:");
   for (const problem of problems) console.error(`  - ${problem}`);
   process.exit(1);
 }
-console.log(`ok  catalog shared: vite-plus ${distinct[0]} in ${vitePlus.map(([base]) => base).join(", ")}; nitro ${nitro} at the root`);
+console.log(`ok  catalog shared: vite-plus ${distinct[0]} in ${vitePlus.map(([base]) => base).join(", ")}${hasServer ? `; nitro ${nitro} at the root` : "; no server in this workspace"}`);
 NODE
 ```
 
-```bash guide:exec id=workspace-app when=mode:fullstack&layout:monorepo
+```bash guide:exec id=workspace-app when=mode:frontend|fullstack&layout:monorepo
 set -euo pipefail
+: "${GUIDE_MODE:?Phase 1 must answer GUIDE_MODE}"
 
 # The app the template writes is the create-vite vanilla-ts demo: a counter, a hero image and a
 # second icon set. None of it is this project's page, so it goes the way the scaffold's demo goes
 # in every other profile — and the page that replaces it is the smoke test's positive half, so it
-# carries a marker rather than being empty. The `favicon.svg` the scaffold references from
-# index.html stays; `index.html` itself already names `/src/main.ts`, which is the entry this
-# rewrite keeps.
+# carries a marker rather than being empty. The marker is the mode's: the same app is a frontend
+# whose backend is elsewhere, or the frontend half of a split project, and the smoke test reads the
+# words the page actually carries. The `favicon.svg` the scaffold references from index.html stays;
+# `index.html` itself already names `/src/main.ts`, which is the entry this rewrite keeps.
+case "$GUIDE_MODE" in
+  fullstack)
+    page_title="Split works"
+    page_line="The API lives on the workspace root server and is reached through the /api dev proxy."
+    ;;
+  frontend)
+    page_title="Frontend works"
+    page_line="This app reaches its backend through the /api dev proxy."
+    ;;
+  *) echo "unsupported mode for the workspace app: $GUIDE_MODE" >&2; exit 1 ;;
+esac
 rm -f apps/website/src/counter.ts apps/website/public/icons.svg
 rm -rf apps/website/src/assets
 
-cat > apps/website/src/main.ts <<'TS'
+cat > apps/website/src/main.ts <<TS
 import "./style.css";
 
 const root = document.querySelector<HTMLDivElement>("#app");
 if (!root) throw new Error("index.html must provide #app");
-root.innerHTML = `
+root.innerHTML = \`
   <main>
-    <h1>Split works</h1>
-    <p>The API lives on the workspace root server and is reached through the /api dev proxy.</p>
+    <h1>${page_title}</h1>
+    <p>${page_line}</p>
   </main>
-`;
+\`;
 TS
 
 cat > apps/website/src/style.css <<'CSS'
@@ -1626,15 +1802,16 @@ main {
 }
 CSS
 
-node --input-type=module - <<'NODE'
+MARKER="$page_title" node --input-type=module - <<'NODE'
 import { existsSync, readFileSync } from "node:fs";
 
 for (const gone of ["apps/website/src/counter.ts", "apps/website/public/icons.svg", "apps/website/src/assets"]) {
   if (existsSync(gone)) { console.error(`${gone} survived the prune`); process.exit(1); }
 }
+const marker = process.env.MARKER;
 const main = readFileSync("apps/website/src/main.ts", "utf8");
-if (!main.includes("Split works")) {
-  console.error("apps/website/src/main.ts does not carry the marker the smoke test reads");
+if (!main.includes(marker)) {
+  console.error(`apps/website/src/main.ts does not carry the marker the smoke test reads (${marker})`);
   process.exit(1);
 }
 const html = readFileSync("apps/website/index.html", "utf8");
@@ -1642,11 +1819,11 @@ if (!html.includes('src="/src/main.ts"')) {
   console.error("apps/website/index.html no longer names /src/main.ts as the entry");
   process.exit(1);
 }
-console.log("ok  frontend app pruned to a minimal page that carries the smoke marker");
+console.log(`ok  frontend app pruned to a minimal page that carries the smoke marker (${marker})`);
 NODE
 ```
 
-```bash guide:exec id=workspace-plugin when=mode:fullstack&layout:monorepo
+```bash guide:exec id=workspace-plugin when=mode:backend|fullstack&layout:monorepo
 set -euo pipefail
 
 # The server is the root's Vite app, so its plugin goes in the root config — in a `plugins` array
@@ -1695,8 +1872,11 @@ TS
 mkdir -p server/routes tests
 : > tests/.gitkeep
 
-# The route is deliberately self-describing: it answers with the path it received, which is the
-# only way "the /api prefix was stripped on the way in" can be asserted instead of assumed.
+# The route is deliberately self-describing in the split shape: it answers with the path it
+# received, which is the only way "the /api prefix was stripped on the way in" can be asserted
+# instead of assumed. A backend workspace has no proxy in front of it, so its route answers the same
+# payload its single-layout sibling does.
+if [ "$GUIDE_MODE" = fullstack ]; then
 cat > server/routes/hello.ts <<'TS'
 import { defineHandler } from "nitro";
 
@@ -1708,6 +1888,13 @@ export default defineHandler((event) => ({
   serverSawHost: event.req.headers.get("host"),
 }));
 TS
+else
+cat > server/routes/hello.ts <<'TS'
+import { defineHandler } from "nitro";
+
+export default defineHandler(() => ({ hello: "world" }));
+TS
+fi
 
 ./node_modules/.bin/vp fmt
 
@@ -1763,7 +1950,9 @@ rm -f server/routes/__guide_probe.ts .vite-plus-server-control.log
 echo "ok  a planted type error in server/routes was caught (TS2322)"
 
 # The same for the app, whose program belongs to the app's own tsconfig: the root check has to
-# cover it, because the app has no `check` script of its own for `vp run -r check` to run.
+# cover it, because the app has no `check` script of its own for `vp run -r check` to run. Only the
+# split shape has an app; a backend workspace deleted it above.
+if [ "$GUIDE_MODE" = fullstack ]; then
 printf 'export const __guideAppProbe: number = "not a number";\n' > apps/website/src/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null
 if ./node_modules/.bin/vp check > .vite-plus-app-control.log 2>&1; then
@@ -1792,9 +1981,11 @@ TS
 ./node_modules/.bin/vp check
 rm -f apps/website/src/__guide_alias_target.ts apps/website/src/__guide_alias_use.ts
 echo "ok  '#/...' resolves inside apps/website through its own package.json imports"
+fi
 
 # The composition is proved by its product: the root's build has to come out of the plugin, in
-# the directory the ignore rules cover, and the workspace build has to cover the app as well.
+# the directory the ignore rules cover, and in the split shape the workspace build has to cover the
+# app as well.
 ./node_modules/.bin/vp build
 [ -f dist/server/index.mjs ] || {
   echo "the build produced no dist/server/index.mjs — the nitro plugin did not run" >&2
@@ -1806,19 +1997,46 @@ echo "ok  '#/...' resolves inside apps/website through its own package.json impo
   exit 1
 }
 echo "ok  root build output is dist/server/index.mjs + dist/nitro.json, with no .output/ beside it"
+
+# In the backend arrangement the client is gone, so the workspace has nothing else to build — which
+# is exactly when a root command that was re-pointed wrongly turns into a no-op. The check is the
+# workspace form of the build, from an empty output directory: `vp run -r build` has to schedule
+# and run the root's own `build` task, and the artefact has to come back. (`0/0 cache hit` with no
+# `#build` task in the summary is what the failure looks like.)
+if [ "$GUIDE_MODE" = backend ]; then
+  rm -rf dist
+  ./node_modules/.bin/vp run --no-cache -r -v build > .vite-plus-workspace-build.log 2>&1 || {
+    cat .vite-plus-workspace-build.log >&2
+    echo "vp run -r build failed" >&2
+    exit 1
+  }
+  grep -q '#build' .vite-plus-workspace-build.log || {
+    cat .vite-plus-workspace-build.log >&2
+    echo "vp run -r build scheduled no build task at all" >&2
+    exit 1
+  }
+  [ -f dist/server/index.mjs ] || {
+    echo "vp run -r build produced no dist/server/index.mjs — the root's build is a no-op" >&2
+    exit 1
+  }
+  rm -f .vite-plus-workspace-build.log
+  echo "ok  vp run -r build builds the workspace root (the re-pointed commands are not a no-op)"
+fi
 ```
 
 ## Phase 3.5 — Dev proxy: only when a frontend is not same-origin as its backend
 
-A frontend that is not served by its backend needs a dev proxy, and there are two such shapes: a
-pure frontend, whose backend is somewhere else entirely, and the split shape, whose backend is the
-workspace's own root server on another port. The production edge strips the `api` prefix before
+A frontend that is not served by its backend needs a dev proxy, and there are three such
+arrangements: a pure frontend in a single repository, whose backend is somewhere else entirely; the
+same pure frontend in a workspace, whose app is the package with the dev server and whose backend is
+still somebody else's; and the split shape, whose backend is the workspace's own root server on
+another port. The production edge strips the `api` prefix before
 the server sees the path; the dev server has to reproduce that exactly, or `/api/*` will work in
 dev and 404 in production. The phase is skipped where the page and the API share one origin — a
 backend project has a server and no page, and the SSR shape serves both from one project — because
 in those a proxy would be a second mechanism for a problem that does not exist.
 
-Three details are load-bearing, in both shapes:
+Three details are load-bearing, in every arrangement:
 
 - `DEV_PROXY` lives in **`.env`**, not `.env.development`: `loadEnv` reads files per mode, and
   a production build would not see a development-mode file — the guard below would then throw
@@ -1829,23 +2047,33 @@ Three details are load-bearing, in both shapes:
 - the **prefix is a regular expression**, so write `/api/` with the trailing slash unless you
   want `/apix/…` proxied too.
 
-The two shapes differ in where all of that lives. A pure frontend has one project, so the proxy
-config is the root `vite.config.ts` and the target is a decision (`GUIDE_DEV_PROXY`) — the backend
-is somebody else's. The split shape keeps the proxy in the **frontend package** and copies the
-rule there: `apps/website/vite.config.ts` (which the template does not write — the app has no
-config of its own until this step) and `apps/website/.env`, with the target derived from the root
-server's own port rather than asked for. The proxy script below is the pure frontend's; the split
-shape's is the next one.
+Where all of that lives follows the package that owns the dev server. A pure frontend in a single
+repository has one project, so the proxy config is the root `vite.config.ts` and the target is a
+decision (`GUIDE_DEV_PROXY`) — the backend is somebody else's. The two workspace arrangements keep
+the proxy in the **frontend package**: `apps/website/vite.config.ts` (which the template does not
+write — the app has no config of its own until this step) and `apps/website/.env`. The split shape's
+target is derived from the root server's own port rather than asked for; a pure frontend workspace
+has no root server, so its target is the same decision the single layout asks — with the
+`http://127.0.0.1:3000` placeholder when the backend is not known yet. The first script below is the
+single layout's; the second is both workspace arrangements', and the one thing it branches on is
+where the target comes from.
 
-```bash guide:exec id=proxy when=mode:frontend
+```bash guide:exec id=proxy when=mode:frontend&layout:single
 set -euo pipefail
-: "${GUIDE_DEV_PROXY:?Phase 3.5 must answer GUIDE_DEV_PROXY (the backend address)}"
+# The dev-proxy target is the one answer with a placeholder: a pure frontend's backend is somebody
+# else's, and it may not exist yet. Ask for it, offer http://127.0.0.1:3000 — a proxy pointed at a
+# port nothing listens on answers 502, which is the loud half of "there is no backend there" — and
+# write what the answer is, falling back to the placeholder when the run was not told. (Every use
+# below goes through this local, so the answer really is optional — naming the bare answer variable
+# would make the extractor require it, and the documented default would be unreachable.)
+dev_proxy_answer=${GUIDE_DEV_PROXY:-http://127.0.0.1:3000}
+export GUIDE_DEV_PROXY="$dev_proxy_answer"
 : "${GUIDE_PM:?Phase 1 must answer GUIDE_PM}"
 
 cat > .env <<ENV
 # Dev proxy: the nginx-equivalent for local development. The /api/ prefix is stripped, so
 # /api/hello reaches the backend as /hello. Committed on purpose: only *.local is ignored.
-DEV_PROXY="[ ['/api/','${GUIDE_DEV_PROXY}',''] ]"
+DEV_PROXY="[ ['/api/','${dev_proxy_answer}',''] ]"
 ENV
 
 node --input-type=module - <<'NODE'
@@ -1914,22 +2142,43 @@ esac
 
 ./node_modules/.bin/vp fmt
 ./node_modules/.bin/vp check
-echo "ok  dev proxy wired: /api/* -> $GUIDE_DEV_PROXY with the prefix stripped"
+echo "ok  dev proxy wired: /api/* -> $dev_proxy_answer with the prefix stripped"
 ```
 
-```bash guide:exec id=proxy-split when=mode:fullstack&layout:monorepo
+```bash guide:exec id=proxy-workspace when=mode:frontend|fullstack&layout:monorepo
 set -euo pipefail
-: "${GUIDE_DEV_PORT:?the split shape needs GUIDE_DEV_PORT (the port the workspace root server binds)}"
+: "${GUIDE_MODE:?Phase 1 must answer GUIDE_MODE}"
 
-# The proxy config belongs to the package that has a dev server of its own; the target is this
-# workspace's root server, so it is written from the root server's port rather than asked for.
-# Change that port in one place and this file follows — a target on a port nothing listens on
-# answers 502, which is the loud half of getting it wrong.
+# The proxy config belongs to the package that has a dev server of its own — the app — and where
+# its target comes from is the arrangement's:
+case "$GUIDE_MODE" in
+  fullstack)
+    # The split shape's backend is this workspace's own root server, so the target is written from
+    # its port rather than asked for. Change that port in one place and this file follows — a target
+    # on a port nothing listens on answers 502, which is the loud half of getting it wrong.
+    # (Read with a default and required inside this branch: a frontend workspace has no root server,
+    # so it never answers this, and the extractor requires every `$GUIDE_…` named without a default
+    # to have been answered in every profile that runs the step.)
+    dev_port_answer=${GUIDE_DEV_PORT:-}
+    [ -n "$dev_port_answer" ] || { echo "the split shape needs GUIDE_DEV_PORT (the port the workspace root server binds)" >&2; exit 1; }
+    dev_proxy_answer="http://127.0.0.1:${dev_port_answer}"
+    proxy_target="the workspace root server"
+    ;;
+  frontend)
+    # A pure frontend workspace has no server of its own: the backend is somebody else's, and it may
+    # not exist yet. Ask for the address, offer http://127.0.0.1:3000 — a proxy pointed at a port
+    # nothing listens on answers 502, which is the loud half of "there is no backend there" — and
+    # write what the answer is, falling back to the placeholder when the run was not told.
+    dev_proxy_answer=${GUIDE_DEV_PROXY:-http://127.0.0.1:3000}
+    proxy_target="the backend named here"
+    ;;
+  *) echo "unsupported mode for a workspace proxy: $GUIDE_MODE" >&2; exit 1 ;;
+esac
+
 cat > apps/website/.env <<ENV
 # Dev proxy: the nginx-equivalent for local development. The /api/ prefix is stripped, so
-# /api/hello reaches the workspace root server as /hello. Committed on purpose: only *.local
-# is ignored.
-DEV_PROXY="[ ['/api/','http://127.0.0.1:${GUIDE_DEV_PORT}',''] ]"
+# /api/hello reaches ${proxy_target} as /hello. Committed on purpose: only *.local is ignored.
+DEV_PROXY="[ ['/api/','${dev_proxy_answer}',''] ]"
 ENV
 
 # The app has no config of its own until now (the template writes none for it), so this is a new
@@ -1990,7 +2239,7 @@ NODE
 
 # Assert the wiring on the formatted file rather than on the patch: "the config was written" and
 # "the app proxies /api/*" are different claims, and the difference is exactly the silent one.
-node --input-type=module - <<'NODE'
+EXPECTED_TARGET="$dev_proxy_answer" node --input-type=module - <<'NODE'
 import { readFileSync } from "node:fs";
 
 const config = readFileSync("apps/website/vite.config.ts", "utf8");
@@ -2011,22 +2260,21 @@ if (/(command\s*===\s*["']serve["'])/.test(config)) {
   process.exit(1);
 }
 const env = readFileSync("apps/website/.env", "utf8");
-const target = process.env.GUIDE_DEV_PORT;
-if (!env.includes(`http://127.0.0.1:${target}`)) {
-  console.error(`apps/website/.env does not point at the root server's port (${target})`);
+const target = process.env.EXPECTED_TARGET;
+if (!env.includes(target)) {
+  console.error(`apps/website/.env does not point at the target this arrangement uses (${target})`);
   process.exit(1);
 }
 if (!env.includes("'/api/'")) {
   console.error("the proxy prefix is not '/api/' — without the trailing slash /apix/... is proxied too");
   process.exit(1);
 }
-console.log("ok  the app's dev proxy is wired to the root server, with the guard in place");
+console.log("ok  the app's dev proxy is wired, with the guard in place");
 NODE
 
 ./node_modules/.bin/vp check
-echo "ok  dev proxy wired in apps/website: /api/* -> http://127.0.0.1:$GUIDE_DEV_PORT with the prefix stripped"
+echo "ok  dev proxy wired in apps/website: /api/* -> $dev_proxy_answer with the prefix stripped"
 ```
-
 ## Phase 4 — Agent skills (automatic, then verified)
 
 Install the promoted skill set from the toolkit's upstream repository. The set is resolved
@@ -2153,10 +2401,11 @@ Four documents, each with one job:
 
 - **`AGENTS.md`** — what to do. The generator's own marked block stays exactly as written,
   with one correction appended below it: `vp env doctor` exists only in the global CLI, which
-  this project deliberately does not use. The rules that only one profile has are appended only in
-  that profile: a frontend project gets the dev-proxy rules, the server profiles the server ones,
-  the SSR shape the rendering ones on top, and the split shape the workspace rules (plus the
-  proxy's, which live in the frontend package there).
+  this project deliberately does not use. The rules that only one arrangement has are appended only
+  in that arrangement: the frontend modes get the dev-proxy rules, the server modes the server ones,
+  the SSR shape the rendering ones on top, and each workspace arrangement the workspace rules plus
+  its own (the proxy's, in the package that owns the dev server; the root-as-application rules,
+  where the root is one). Nothing describes a package or a file this project does not have.
 - **`docs/adr/`** — why, and what would change the decision.
 - **`docs/agent-notes.md`** — what is already known to bite, as facts rather than rules, in the
   same shape: the traps every mode shares, plus the ones this mode's stack brings with it.
@@ -2195,12 +2444,12 @@ alternative fails quietly.
 ### Path aliases
 
 - Import cross-directory modules as `#/…` (extensionless), resolved from the **package** root: the
-  project root in a single project (`#/src/…`, `#/server/…`), and each package's own root in a
-  monorepo (`#/server/…` at the workspace root, `#/src/…` inside `apps/website`). The only alias
-  mechanism is the `imports` map in that package's `package.json`. Never add `paths` to a tsconfig,
-  `resolve.alias` to the Vite config, or `resolve.tsconfigPaths` — each one silently out-ranks
-  `imports` for some consumer, so the type checker and the bundler can disagree without either
-  going red.
+  project root in a single project, and each package's own root in a workspace — a file is reached
+  as `#/<path-from-that-package's-root>`, and a package with no map simply has no aliases. The only
+  alias mechanism is the `imports` map in that package's `package.json`. Never add `paths` to a
+  tsconfig, `resolve.alias` to the Vite config, or `resolve.tsconfigPaths` — each one silently
+  out-ranks `imports` for some consumer, so the type checker and the bundler can disagree without
+  either going red.
 - Keep the `types` branch first in that map: TypeScript never probes extensions, so a
   `default`-only map makes every aliased import a type error while dev and build stay green.
 
@@ -2386,6 +2635,117 @@ FULLSTACK
 - The frontend app ships no test harness by decision — a page-iteration loop is faster without a
   suite that goes stale — and that is exactly the case `vp run -r` is built to skip.
 SPLIT
+    ;;
+  backend/monorepo)
+    cat >> AGENTS.md <<'BACKENDWORKSPACE'
+
+### Workspace (monorepo)
+
+- The workspace root is a package, and it owns the server: `defaultPackage: "."` in the root
+  `vite.config.ts` is what lets `vp dev` and `vp build` act on it. Without it vp refuses at the
+  root — ``error: `vp dev` at the workspace root needs a target package.``, exit 1.
+- The root manifest registers the commands that matter: `vp run dev:server`, `vp run check`,
+  `vp run test`, `vp run build`, `vp run ready`. There is no `dev:website`: this project has no
+  frontend, and the app the template wrote was deleted during initialization.
+- **No command may name a package by its task** (`"dev": "vp run website#dev"`). A script that names
+  a package the workspace does not have exits 0 and runs nothing — the failure looks like success.
+  The template's own `dev` script is that form and was replaced for exactly this reason.
+- `vp run -r <task>` is the cross-package form, and a package that does not define the task is
+  **skipped silently** (exit 0). That is the contract, not an oversight. Selecting a package
+  explicitly (`vp run -F <pkg> <task>`, `vp run -w <task>`) turns the missing task into an error
+  instead, which is why orchestration uses `-r`.
+- Every dependency version lives in the `catalog:` block of `pnpm-workspace.yaml`, and every
+  package references it as `"<name>": "catalog:"`. A version literal in a `package.json` is a
+  version nothing else shares; `vp install` is what turns the catalog into `node_modules`.
+- Only `vp` commands, everywhere: `vp run -r …` across packages, `vp -C <pkg> …` for one package,
+  `vp install` after a manifest change, `vp run <script>` for the root's scripts, and
+  `vp add -w -D <name>` (root) or `vp -C <pkg> add -D <name>` (a package) to add a dependency —
+  with `catalogMode: prefer` the version lands in the catalog and the manifest keeps `catalog:`.
+  Do not reach for pnpm, npm, yarn or bun: one toolchain, one way to operate it.
+- `vp check` at the root covers **every** package, including `server/`; `vp run -r check` runs each
+  package's own `check` script and skips the packages without one. `vp run -r test` would run the
+  root's workspace-wide scan *and* each package's own test script — the same file twice — so the
+  test command is `vp run test`.
+- The workspace build is `vp run -r build`, and it includes the root: `dist/server/index.mjs` and
+  `dist/nitro.json` come out of it. A build that schedules nothing means the root's build script is
+  missing or was renamed.
+
+### Server
+
+- The server is **Nitro v3 as a Vite plugin** in the **root** `vite.config.ts`, called in the
+  `plugins` array beside `defaultPackage: "."`. An import without that call is silently inert:
+  `vp check` still exits 0 and every route 404s.
+- Routes are files under `server/routes/`, and their URL is the file path with **no prefix**
+  (`server/routes/hello.ts` → `/hello`). `server/api/` — the directory that adds the `/api` prefix
+  implicitly — is not used here: this project has no frontend for a prefix to belong to.
+- `nitro.config.ts` sets `output: { dir: "dist" }`, the directory the ignore rules already cover.
+  A build that writes Nitro's default `.output/` instead makes `vp fmt` and `vp check` fail on the
+  build's own artefacts, because those commands take their file set from the ignore rules.
+- Server code imports explicitly (`nitro`, `nitro/h3`, `nitro/types`): v3 has no auto-imports, so
+  an undeclared global is a type error instead of a runtime surprise.
+- The production artefact is the built bundle — `node dist/server/index.mjs` — and `nitro` is a
+  devDependency of the root, like the rest of the toolchain.
+
+### Tests
+
+- Tests live in `tests/` at the workspace root — or a package's own `tests/` — and never under
+  `server/`: Nitro compiles every file under `server/routes/` and `server/api/` into a route, so a
+  test in there would be served instead of run.
+- The root's runner is wired and empty: `vp test --passWithNoTests` exits 0 with no test files.
+  That is the configured state, not coverage — a green test command means the runner works.
+BACKENDWORKSPACE
+    ;;
+  frontend/monorepo)
+    cat >> AGENTS.md <<'FRONTENDWORKSPACE'
+
+### Workspace (monorepo)
+
+- The workspace root is a shell: it owns the catalog of versions and the commands, and it is not an
+  application. The application is `apps/website`, which has its own `dev`/`build`/`preview` scripts
+  and its own tsconfig.
+- The root manifest registers `vp run dev:website` (the app's dev server),
+  `vp run check` (the workspace's static check) and `vp run ready` (`vp check && vp run -r build`).
+  The workspace build is `vp run -r build`: the root defines no `build` task of its own, and the
+  runner skipping it is the contract, not a failure.
+- **No command may name a package by its task** (`"dev": "vp run website#dev"`). A script that names
+  a package the workspace does not have exits 0 and runs nothing — the failure looks like success.
+- `vp run -r <task>` is the cross-package form, and a package that does not define the task is
+  **skipped silently** (exit 0). Selecting a package explicitly (`vp run -F <pkg> <task>`,
+  `vp run -w <task>`) turns the missing task into an error instead, which is why orchestration uses
+  `-r`.
+- `vp check` at the root covers **every** package, including `apps/website/src` — the app has no
+  `check` script of its own, so the root check is what type-checks it.
+- Every dependency version lives in the `catalog:` block of `pnpm-workspace.yaml`, and every
+  package references it as `"<name>": "catalog:"`. A version literal in a `package.json` is a
+  version nothing else shares; `vp install` is what turns the catalog into `node_modules`.
+- Only `vp` commands, everywhere: `vp run -r …` across packages, `vp -C <pkg> …` for one package,
+  `vp install` after a manifest change, and `vp add -w -D <name>` (root) or
+  `vp -C <pkg> add -D <name>` (a package) to add a dependency — with `catalogMode: prefer` the
+  version lands in the catalog and the manifest keeps `catalog:`. Do not reach for pnpm, npm, yarn
+  or bun: one toolchain, one way to operate it.
+
+### Development proxy (apps/website)
+
+- The proxy lives in the frontend package: `apps/website/vite.config.ts` and `apps/website/.env`
+  (committed; personal overrides go in `apps/website/.env.local`). `DEV_PROXY` names a backend this
+  project does not own — it was answered at initialization, and `http://127.0.0.1:3000` is the
+  placeholder that was written when nothing better was known.
+- The one-line guard is deliberate and unconditional: without it a missing variable makes `/api/*`
+  answer `200` with this app's HTML instead of failing. It must fire in every mode, which is why
+  the variable lives in `.env` (loaded for a production build too) rather than `.env.development`.
+- The proxy prefix is a regular expression and is written `/api/` with the trailing slash.
+- A target nothing listens on answers `502` — which is what the placeholder does until the real
+  backend exists, and the loud half of pointing the proxy at the wrong address. A `200 text/html`
+  on an `/api/` path means the proxy is not running at all.
+
+### Tests
+
+- The frontend app ships no test harness by decision: a page-iteration loop is faster without a
+  suite that goes stale. Adding one is an explicit decision — say what it is for, and record the
+  reason in an ADR.
+- A package that does need tests keeps them in its own `tests/` with its own script;
+  `vp run -r test` runs the packages that define one and skips the rest silently.
+FRONTENDWORKSPACE
     ;;
 esac
 
@@ -2633,6 +2993,98 @@ artifacts: two builds, two outputs, one API.
   `/api` prefix before the server sees the path, and the dev proxy is measured to do the same.
 ```
 
+```markdown guide:file path=docs/adr/0004-backend-workspace.md when=mode:backend&layout:monorepo
+# The backend lives in a workspace whose root is the server
+
+This project is a pnpm workspace with exactly one package that matters: the root, which *is* the
+Nitro v3 server (a Vite plugin, `serverDir: "./server"`, `output: { dir: "dist" }`, routes whose URL
+is their file path with no prefix). The layout is a workspace because the project may grow a second
+package, not because it has two halves today; the client the monorepo template wrote was deleted in
+the same run, because a backend project has no frontend. The placeholder package the layout offered
+is a decision: kept as the home for future shared code, or removed.
+
+## Considered Options
+
+- **The single layout** — a perfectly good backend project, and the smaller one. It is rejected here
+  only because a workspace was asked for: when the second package arrives, moving the server into one
+  afterwards is a different change with its own risks.
+- **Keeping `apps/website` as a stub** — rejected: a backend project has no client, and an empty or
+  token frontend is a package that something will eventually try to build, deploy, or serve.
+- **A second package for the server, with a shell root** — rejected: it buys nothing here. The root
+  is a package in a workspace, and `defaultPackage: "."` lets the app commands act on it directly
+  instead of every command naming a package.
+- **A root script that delegates by package name (`vp run <pkg>#<task>`)** — rejected: the template's
+  own `"dev": "vp run website#dev"` is that form, and with `apps/website` deleted it exits 0 having
+  run nothing (`vp run: 0/0 cache hit`, measured). Every root command names what the workspace
+  actually has, and the rule is checked rather than remembered.
+- **`build: "vp run -r build"` as the root's build** — rejected: the root's own build is the server's,
+  and a self-referential script is pruned along with the root's entry in that run.
+
+## Consequences
+
+- `vp run -r build` is the workspace build and it includes the root: the root's `build` script
+  (`vp build`) runs, and `dist/server/index.mjs` + `dist/nitro.json` come out of it. A build that
+  schedules nothing is the failure this arrangement is most likely to have silently, so it is
+  asserted.
+- The root manifest registers `dev:server`, `check`, `test`, `build` and `ready`; there is no
+  `dev:website`, because there is no website. `ready` runs the root's own `vp test` rather than
+  `vp run -r test` — the root's test script already scans the whole workspace, and the `-r` form
+  would run each package's test scripts on top of that scan.
+- Every dependency version lives in the workspace catalog (`pnpm-workspace.yaml`) and every manifest
+  references it as `"catalog:"`; `vp install` turns the catalog into `node_modules`.
+- `tests/` sits at the workspace root and never under `server/`: Nitro compiles every file under
+  `server/routes/` and `server/api/` into a route, so a test in there would be served, not run.
+- The production artefact is `dist/server/index.mjs`, started with `node dist/server/index.mjs`
+  (the `PORT` environment variable is honoured).
+```
+
+```markdown guide:file path=docs/adr/0004-frontend-workspace.md when=mode:frontend&layout:monorepo
+# The frontend lives in a workspace whose root is a shell
+
+This project is a pnpm workspace, and the application is the package the monorepo template wrote:
+`apps/website`, a create-vite `vanilla-ts` app with its own `dev`/`build`/`preview` scripts and its
+own tsconfig. The workspace root owns the catalog of versions and the commands that operate the
+workspace; it is not an application itself, and nothing in this project compiles a server. The
+frontend's backend is somewhere else — the dev proxy in `apps/website` names it and strips the `/api`
+prefix exactly as the production edge does.
+
+## Considered Options
+
+- **The single layout** — the smaller frontend project, with the proxy at the root. Rejected here
+  because a workspace was asked for: the point of the layout is that the next package (a shared UI
+  package, a second app) can arrive as a package rather than as a restructure.
+- **Keeping the placeholder `packages/utils`** — a decision, not a default: kept as the home for
+  future shared code, or deleted. Both leave the workspace complete; the layout and the commands do
+  not depend on it either way.
+- **Putting the proxy in the root config** — rejected: `loadEnv(mode, process.cwd(), "")` reads the
+  environment from the working directory, and the dev server this proxy belongs to is the app's. A
+  proxy at the root would name the wrong directory and would never run.
+- **A root `build` script of its own** — rejected: the root has nothing to build, and a script that
+  delegates to the workspace run under the same name is self-referential. The workspace build is
+  `vp run -r build`.
+- **Serving the built app from a root dev server** — rejected: there is no root application to serve
+  it, and adding one would be a server this project does not have.
+
+## Consequences
+
+- The commands that matter are registered at the root: `dev:website` (`vp -C apps/website dev`),
+  `check` (`vp check`) and `ready` (`vp check && vp run -r build`). The workspace build is
+  `vp run -r build`; the root is skipped there because it defines no build task — a skip that is the
+  runner's contract, not a failure.
+- `vp check` at the root walks every package, so it is the workspace's type check: the app's sources
+  are covered by it even though the app has no `check` script of its own.
+- Every dependency version lives in the workspace catalog and every manifest references it as
+  `"catalog:"` — including `vite-proxy-from-env`, the app's dev-proxy transformer.
+- `apps/website/.env` holds `DEV_PROXY` and is committed (only `*.local` is ignored). The guard in
+  `apps/website/vite.config.ts` is unconditional and fires in every mode: a missing variable stops
+  the dev server and a build, instead of answering `/api/*` with the app's HTML at exit 0.
+- The app ships no test harness, by the same decision the single-layout frontend makes: page
+  iteration is faster without a suite that goes stale. A package that needs tests has its own
+  `tests/` and its own script; `vp run -r test` runs those.
+- Production topology is out of scope, with one thing fixed: the edge strips the `/api` prefix
+  before the backend sees the path, and the app's dev proxy is measured to do the same.
+```
+
 ```markdown guide:file path=docs/agent-notes.md
 # Agent notes — known traps and version facts
 
@@ -2700,7 +3152,7 @@ Rules live in `AGENTS.md`; the reasoning lives in `docs/adr/`.
   suite means the runner is wired, not that anything is covered.
 ```
 
-```bash guide:exec id=notes-proxy when=mode:frontend
+```bash guide:exec id=notes-proxy when=mode:frontend&layout:single
 set -euo pipefail
 
 # Traps that only exist in a project whose backend is somewhere else.
@@ -2718,8 +3170,44 @@ cat >> docs/agent-notes.md <<'NOTES'
 - A dead backend produces `502`, and an unknown `/api/*` path produces `404` — never the
   single-page-app fallback. A `200` with `text/html` on an `/api` path means the proxy is not
   running.
+- The proxy target has a placeholder (`http://127.0.0.1:3000`) because the backend may not exist
+  yet. The placeholder is a starting point, not a working backend: until a real one answers there,
+  every `/api/*` call is a `502`.
 NOTES
 echo "ok  dev-proxy traps appended to docs/agent-notes.md"
+```
+
+```bash guide:exec id=notes-proxy-app when=mode:frontend&layout:monorepo
+set -euo pipefail
+
+# The dev-proxy traps of a frontend workspace: the same mechanism as a single project's, in the
+# package that owns the dev server, against somebody else's backend.
+cat >> docs/agent-notes.md <<'NOTES'
+
+## The development proxy (apps/website)
+
+- The proxy lives in the frontend package — `apps/website/vite.config.ts` and `apps/website/.env` —
+  because `loadEnv(mode, process.cwd(), "")` reads the working directory, and the dev server this
+  proxy belongs to runs there. The app's own `.gitignore` ignores only `*.local`, so the file is
+  committed and a personal override goes in `apps/website/.env.local`.
+- The guard `if (!env.DEV_PROXY) throw …` is deliberate and unconditional, and it fires in every
+  mode: with the variable missing, `vp -C apps/website dev` stops with
+  `Error: DEV_PROXY is not set — see .env` instead of serving `/api/*` as this app's HTML, and a
+  build whose config cannot load fails too (which is why the variable sits in `.env`, not
+  `.env.development`).
+- `DEV_PROXY` names a backend this project does not own. It was answered at initialization and
+  written down as `http://127.0.0.1:3000` when nothing better was known — a target nothing listens
+  on answers `502`, never this app's HTML, so a stale placeholder is loud.
+- The prefix is compiled as a regular expression, so `/api/` with the trailing slash is what keeps
+  `/apix/…` out of the proxy.
+- Inside `/api/`, Vite's single-page fallback never applies: an unknown `/api/…` path is the
+  backend's `404`, and a dead target is a `502`. Outside `/api/`, an unknown path is this app's HTML
+  `200` — so a `200 text/html` on an `/api/` path means the proxy is not running.
+- The proxied path reaches the backend **without** the prefix, which is the whole point: the
+  production edge strips the same prefix before it forwards, so a backend contract that expects
+  `/api/…` on its own routes will look right in dev only until it is deployed.
+NOTES
+echo "ok  frontend-workspace proxy traps appended to docs/agent-notes.md"
 ```
 
 ```bash guide:exec id=notes-server when=mode:backend|fullstack
@@ -2779,28 +3267,32 @@ NOTES
 echo "ok  merged-program trap appended to docs/agent-notes.md"
 ```
 
-```bash guide:exec id=notes-workspace when=mode:fullstack&layout:monorepo
+```bash guide:exec id=notes-workspace when=layout:monorepo
 set -euo pipefail
 
-# Traps that only exist because this project is a workspace.
+# Traps that only exist because this project is a workspace — true of all three arrangements, so
+# the ones that are about a root that *is* an app live in their own block below.
 cat >> docs/agent-notes.md <<'NOTES'
 
 ## The workspace
 
-- The workspace root is a package, and vp's app commands refuse to act on it until it says so:
-  `vp dev`/`vp build` at the root print ``error: … needs a target package`` and exit 1 once
-  `apps/` and `packages/` exist. `defaultPackage: "."` in the root `vite.config.ts` is the fix,
-  and the sign it applied is the `using . (defaultPackage in vite.config.ts)` note.
+- The workspace root is a package of the workspace, and that is what makes the root manifest the
+  place the workspace's commands are registered. What those commands need from vp depends on whether
+  the root is an application, which the arrangement's own note below covers.
+- A root script that names a package by its task (`"dev": "vp run website#dev"`) is a **silent
+  no-op** when that package does not exist: it exits 0 with `vp run: 0/0 cache hit` and runs
+  nothing. Every root command names something the workspace actually has; a script left pointing at
+  a package the layout deleted is worse than a broken command, because nothing goes red.
 - `vp run -r <task>` skips a package that does not define the task: no warning, no mention,
   exit 0. `vp run -F <pkg> <task>` and `vp run -w <task>` are the opposite — the missing task is
   `error: Task "<task>" not found`, exit 1 — and a task no package defines is exit 1 as well.
 - `vp check` at the root walks every package, so it is the workspace's type check;
-  `vp run -r check` runs each package's own `check` instead, and `apps/website` has no such
-  script (create-vite writes none for a frontend app), so nothing in the app is checked by that
-  form. The two are not interchangeable.
+  `vp run -r check` runs each package's own `check` script instead — and a package that defines
+  none is skipped by that form, silently, by contract. The two forms are not interchangeable.
 - `vp run -r test` runs the root's workspace-wide Vitest scan and then each package's own test
-  script: the same test file runs twice, and nothing warns. `vp run test` (the root's own script)
-  runs it once.
+  script: the same test file runs twice, and nothing warns. A root whose test script is that scan
+  calls `vp test` instead, and a workspace with no root test script at all has `vp run -r test` as
+  the only form — which runs the packages that define one.
 - `vp run -r check -v` fails: extra arguments after the task name are passed to the task
   (`error: Invalid vite task command`). Put the flag before the task — `vp run -r -v check`.
 - A root script and a vite.config.ts task may not share a name; the collision
@@ -2816,6 +3308,31 @@ cat >> docs/agent-notes.md <<'NOTES'
   until `--no-cache`. When a result matters, re-run the task with `--no-cache`.
 NOTES
 echo "ok  workspace traps appended to docs/agent-notes.md"
+```
+
+```bash guide:exec id=notes-workspace-root-server when=mode:backend|fullstack&layout:monorepo
+set -euo pipefail
+
+# The workspace traps that are only true when the root is the application: the server's program,
+# and the guard the app commands hit.
+cat >> docs/agent-notes.md <<'NOTES'
+
+## The workspace root as an application
+
+- `defaultPackage: "."` in the root `vite.config.ts` is what lets `vp dev` and `vp build` act on the
+  root; the sign it applied is the `using . (defaultPackage in vite.config.ts)` note on the command
+  that runs. Without it the failure is a hard stop (`needs a target package`, exit 1), not a wrong
+  output.
+- The root's TypeScript program is the scaffold's `tsconfig.json`, which has no `include` list and
+  therefore covers every TypeScript file at the root — `server/`, `tests/`, `vite.config.ts` and
+  `nitro.config.ts` alike. That is why no second, merged program is written here, and why a planted
+  type error inside a route still turns `vp check` red.
+- Deleting a package is not enough: every command that referred to it has to be re-pointed. A root
+  script of the form `vp run <package>#<task>` exits 0 and does nothing once that package is gone —
+  measured. The root manifest here registers `dev:server`, `check`, `test`, `build` and `ready`, and
+  `ready` chains the workspace-wide check, tests and build.
+NOTES
+echo "ok  root-application workspace traps appended to docs/agent-notes.md"
 ```
 
 ```bash guide:exec id=notes-proxy-split when=mode:fullstack&layout:monorepo
@@ -2931,12 +3448,21 @@ set -euo pipefail
 : "${GUIDE_SKILLS_VERSION:?}"; : "${GUIDE_SETUP:?}"
 
 vite_plus_version=$(node -p 'require("./node_modules/vite-plus/package.json").version')
-# In the monorepo layout TypeScript belongs to the packages that compile (the app and the
-# placeholder package); the root's own program is type-checked by the toolchain's checker, and the
-# root manifest has no typescript dependency to read a version from.
+# In the monorepo layout TypeScript belongs to the packages that compile; the root's own program is
+# type-checked by the toolchain's checker, and the root manifest has no typescript dependency to
+# read a version from. Which package that is depends on the arrangement: the app in the shapes that
+# have one, the placeholder package in a backend workspace that kept it — and a backend workspace
+# that deleted the placeholder has no compiled package at all, which is a fact this record states
+# rather than one it guesses at.
 if [ "$GUIDE_LAYOUT" = monorepo ]; then
-  typescript_version=$(node -p 'require("./apps/website/node_modules/typescript/package.json").version')
   typescript_pin=$(grep -E '^[ \t]+typescript:' pnpm-workspace.yaml | head -1 | sed -E 's/^[ \t]+typescript:[ \t]*//')
+  if [ -d apps/website/node_modules/typescript ]; then
+    typescript_version=$(node -p 'require("./apps/website/node_modules/typescript/package.json").version')
+  elif [ -d packages/utils/node_modules/typescript ]; then
+    typescript_version=$(node -p 'require("./packages/utils/node_modules/typescript/package.json").version')
+  else
+    typescript_version="not installed in a package of this workspace (the root's program is checked by the toolchain)"
+  fi
 else
   typescript_version=$(node -p 'require("./node_modules/typescript/package.json").version')
   typescript_pin="$GUIDE_TS_VERSION"
@@ -2952,10 +3478,11 @@ placeholder_answer=${GUIDE_PLACEHOLDER:-not applicable}
 dev_port_answer=${GUIDE_DEV_PORT:-}
 
 # What the record says depends on the profile: a backend project has a server and no proxy, a
-# frontend project the other way round, the SSR shape has both halves in one origin, and the split
-# shape has both halves in two packages. Naming another profile's fact here — a proxy target that
-# does not exist, or a server that was never installed — would put a wrong fact in the one
-# document whose whole job is to be the record.
+# frontend project the other way round, the SSR shape has both halves in one origin, the split shape
+# has both halves in two packages, a backend workspace has the server and no client package, and a
+# frontend workspace has the app and no server. Naming another profile's fact here — a proxy target
+# that does not exist, a frontend package that was deleted, or a server that was never installed —
+# would put a wrong fact in the one document whose whole job is to be the record.
 toolchain_rows="| vite-plus | ${vite_plus_version} | \`${GUIDE_VP_VERSION}\` (prerelease) |
 | TypeScript | ${typescript_version} | \`${typescript_pin}\` |
 | create-vite | ${create_vite_version:-see note below} | \`create-vite@latest\`, unpinnable upstream |"
@@ -2970,8 +3497,7 @@ if [ "$GUIDE_MODE" = "backend" ] || [ "$GUIDE_MODE" = "fullstack" ]; then
 | nitro | ${nitro_version} | \`${nitro_pin}\` (prerelease) |"
 fi
 scaffold_line="3. Skeleton: \`vp create vite:application\` + \`--template ${GUIDE_FRAMEWORK}\`, alias map, configuration trimmed, ignore rules refined, dependencies installed."
-if [ "$GUIDE_MODE/$GUIDE_LAYOUT" = "backend/single" ]; then
-  choice_rows="| Scaffold base | ${GUIDE_FRAMEWORK} (the client it writes is pruned in the same run: a backend project has no frontend) |
+if [ "$GUIDE_MODE/$GUIDE_LAYOUT" = "backend/single" ]; then  choice_rows="| Scaffold base | ${GUIDE_FRAMEWORK} (the client it writes is pruned in the same run: a backend project has no frontend) |
 | Server foundation | nitro@${nitro_version} — \`${nitro_pin}\` (prerelease) |"
   server_step="4. Server: the scaffold's client pruned (\`src/\`, \`public/\`, \`index.html\`), \`nitro\` pinned and installed, \`serverDir: \"./server\"\` with \`output: { dir: \"dist\" }\` in \`nitro.config.ts\`, and \`nitro()\` registered in the \`plugins\` array of \`vite.config.ts\`."
   verify_step="8. Verification: format, static check with a live type checker, the build script with its output in \`dist/\`, and smoke tests of the dev server and of the built \`dist/server/index.mjs\`. Recorded ${installed_at}."
@@ -2991,11 +3517,29 @@ elif [ "$GUIDE_MODE/$GUIDE_LAYOUT" = "fullstack/monorepo" ]; then
   scaffold_line="3. Skeleton: \`vp create vite:monorepo\`, the workspace catalog extended with \`nitro\` and every dependency spec pointed at \`catalog:\`, the root server and the app pruned and wired, dependencies installed with \`vp install\`."
   server_step="4. Split shape: the root's \`nitro.config.ts\` (\`serverDir: \"./server\"\`, \`output: { dir: \"dist\" }\`) and \`server/routes/hello.ts\`, \`nitro()\` in the root \`vite.config.ts\` beside \`defaultPackage: \".\"\`, the app pruned to a minimal page, and the app's own \`vite.config.ts\` + \`.env\` carrying the dev proxy with its guard. Root commands \`dev:server\`, \`dev:website\`, \`check\`, \`test\`, \`build\`, \`ready\`."
   verify_step="8. Verification: format, the workspace-wide static check (\`vp check\`) and \`vp run -r check\`, the workspace build (\`vp run -r build\`) with the root server's \`dist/server/index.mjs\` and the app's \`apps/website/dist\`, and smoke tests of the built server and of both dev servers, asserting the app's page, the same-origin \`/api/hello\` on the root port, and the proxied \`/api/hello\` from the app's port arriving as \`/hello\`. Recorded ${installed_at}."
-else
+elif [ "$GUIDE_MODE/$GUIDE_LAYOUT" = "backend/monorepo" ]; then
+  choice_rows="| Scaffold base | ${GUIDE_FRAMEWORK} (the app it writes is deleted in the same run: a backend project has no frontend) |
+| Placeholder package | ${placeholder_answer} (\`packages/utils\`) |
+| Server foundation | nitro@${nitro_version} — \`${nitro_pin}\` (prerelease), at the workspace root |"
+  scaffold_line="3. Skeleton: \`vp create vite:monorepo\`, the workspace catalog extended with \`nitro\` and every dependency spec pointed at \`catalog:\`, the template's app deleted, the root server wired, dependencies installed with \`vp install\`."
+  server_step="4. Backend workspace: the root's \`nitro.config.ts\` (\`serverDir: \"./server\"\`, \`output: { dir: \"dist\" }\`) and \`server/routes/hello.ts\`, \`nitro()\` in the root \`vite.config.ts\` beside \`defaultPackage: \".\"\`, and the root commands re-pointed — \`dev:server\`, \`check\`, \`test\`, \`build\`, \`ready\`, none of them naming the deleted package."
+  verify_step="8. Verification: format, the workspace-wide static check (\`vp check\`) and \`vp run -r check\`, the workspace build (\`vp run -r build\`, which builds the root server) leaving \`dist/server/index.mjs\` with no \`.output/\`, and smoke tests of the built artefact and of the root dev server. Recorded ${installed_at}."
+elif [ "$GUIDE_MODE/$GUIDE_LAYOUT" = "frontend/monorepo" ]; then
+  choice_rows="| Scaffold template | \`vite:monorepo\` (the app is create-vite's \`${GUIDE_FRAMEWORK}\` app in \`apps/website\`) |
+| Placeholder package | ${placeholder_answer} (\`packages/utils\`) |
+| Dev proxy target | \`${GUIDE_DEV_PROXY:-http://127.0.0.1:3000}\` (\`apps/website/.env\`; the \`/api/\` prefix is stripped) |
+| Server | none: the backend is the address above, and this workspace has no server of its own |"
+  scaffold_line="3. Skeleton: \`vp create vite:monorepo\`, the workspace catalog extended and every dependency spec pointed at \`catalog:\`, the app pruned and given its dev proxy, dependencies installed with \`vp install\`."
+  server_step="4. Frontend workspace: no server in this project — the app under \`apps/website\` reaches the backend named by \`DEV_PROXY\` through the \`/api/\` proxy in \`apps/website/vite.config.ts\`, whose guard turns a missing variable into a stop instead of an HTML page. Root commands \`dev:website\`, \`check\`, \`ready\`."
+  verify_step="8. Verification: format, the workspace-wide static check (\`vp check\`) and \`vp run -r check\`, the workspace build (\`vp run -r build\`) with the app's \`apps/website/dist\`, and a dev-server smoke test from the app's port asserting the app's page and the proxied \`/api/…\` route arriving at the backend without its prefix. Recorded ${installed_at}."
+elif [ "$GUIDE_MODE/$GUIDE_LAYOUT" = "frontend/single" ]; then
   choice_rows="| Framework template | ${GUIDE_FRAMEWORK} |
-| Dev proxy target | ${GUIDE_DEV_PROXY:-not applicable} |"
+| Dev proxy target | ${GUIDE_DEV_PROXY:-http://127.0.0.1:3000} |"
   server_step="4. Dev proxy: \`DEV_PROXY\` in \`.env\`, transformer wired with a guard."
   verify_step="8. Verification: format, static check with a live type checker, build script, and a dev-server smoke test through the proxy. Recorded ${installed_at}."
+else
+  echo "no provenance branch is implemented for $GUIDE_MODE/$GUIDE_LAYOUT; stop and report" >&2
+  exit 1
 fi
 
 mkdir -p docs
@@ -3085,11 +3629,15 @@ prefix unconsumed answers a 404 that looks like a missing route.
 set -euo pipefail
 : "${GUIDE_MODE:?}"; : "${GUIDE_LAYOUT:?}"; : "${GUIDE_PM:?}"
 if [ "$GUIDE_LAYOUT" = monorepo ]; then
-  # The root server keeps Nitro's default port in this shape, and the app keeps Vite's.
-  GUIDE_DEV_PORT=${GUIDE_DEV_PORT:-3000}
+  # A root server keeps Nitro's default port in this layout, and an app keeps Vite's.
+  dev_port=${GUIDE_DEV_PORT:-3000}
 else
-  GUIDE_DEV_PORT=${GUIDE_DEV_PORT:-5173}   # Vite's own default; override only to dodge a busy port
+  dev_port=${GUIDE_DEV_PORT:-5173}   # Vite's own default; override only to dodge a busy port
 fi
+# The smoke script reads the port from the environment, and the extractor's rule is that every
+# `$GUIDE_…` named without a default has to have been answered — the port is an answer with a
+# default, so it is read once here and used under a local name from there on.
+GUIDE_DEV_PORT="$dev_port"
 # Read into a local with a default: the app's port belongs to the monorepo layout, and this step
 # runs in every profile, where the extractor requires every `$GUIDE_…` named without a default to
 # have been answered.
@@ -3109,17 +3657,17 @@ pm_run() {
 
 step() { printf '\n== %s ==\n' "$*"; }
 
-# An answer only one profile reads is checked in that profile: the frontend smoke goes through a
-# proxy to a backend this project does not own, the split shape's two, and the backend and SSR
-# smokes call their own server on one port.
+# An answer only one profile reads is checked in that profile: the frontend smokes go through a
+# proxy to a backend this project does not own, the split shape's page and API are two servers, and
+# the server smokes call their own server on one port. The proxy target is read with the placeholder
+# default, because the answer is allowed to be the placeholder.
 case "$GUIDE_MODE/$GUIDE_LAYOUT" in
-  frontend/single)
-    [ -n "${GUIDE_DEV_PROXY:-}" ] || { echo "GUIDE_DEV_PROXY was never answered (Phase 3.5)" >&2; exit 1; }
+  frontend/single|frontend/monorepo)
+    GUIDE_DEV_PROXY=${GUIDE_DEV_PROXY:-http://127.0.0.1:3000}
     [ -n "${GUIDE_PROXY_SMOKE_PATH:-}" ] || { echo "GUIDE_PROXY_SMOKE_PATH was never answered (Phase 3.5)" >&2; exit 1; }
     export GUIDE_DEV_PROXY GUIDE_PROXY_SMOKE_PATH
     ;;
-  backend/single|fullstack/single) ;;
-  fullstack/monorepo) ;;
+  backend/single|backend/monorepo|fullstack/single|fullstack/monorepo) ;;
   *) echo "no verification is implemented for profile '$GUIDE_MODE/$GUIDE_LAYOUT'" >&2; exit 1 ;;
 esac
 
@@ -3153,7 +3701,11 @@ if [ "$GUIDE_LAYOUT" = monorepo ]; then
     exit 1
   fi
   rm -f .vite-plus-check-all.log
-  echo "ok  vp run -r check ran the packages that define a check script and skipped apps/website"
+  if [ "$GUIDE_MODE" = frontend ] || [ "$GUIDE_MODE" = fullstack ]; then
+    echo "ok  vp run -r check ran the packages that define a check script and skipped apps/website"
+  else
+    echo "ok  vp run -r check ran the packages that define a check script"
+  fi
 else
   echo "single project: the vp check above is the whole check"
 fi
@@ -3208,6 +3760,34 @@ case "$GUIDE_MODE/$GUIDE_LAYOUT" in
       echo "ok  root dist/server/index.mjs + dist/nitro.json, apps/website/dist, no .output/"
     fi
     ;;
+  backend/monorepo)
+    # One package that matters — the root, whose output is the server's — and one that may exist.
+    # The workspace build is one command, so "it passed" has to mean the root produced its artefact:
+    # a root build task that is missing or was left pointing at the deleted app builds nothing.
+    [ -f dist/server/index.mjs ] || { echo "the workspace build produced no dist/server/index.mjs — the root's build is not covering the server" >&2; exit 1; }
+    [ -f dist/nitro.json ] || { echo "the workspace build produced no dist/nitro.json" >&2; exit 1; }
+    [ ! -e .output ] || { echo "the build also wrote .output/ at the root; output.dir did not take effect" >&2; exit 1; }
+    [ ! -e apps ] || { echo "a backend workspace has no client, and apps/ exists" >&2; exit 1; }
+    if [ "${GUIDE_PLACEHOLDER:-}" = yes ]; then
+      [ -f packages/utils/dist/index.mjs ] || { echo "the placeholder package build produced no packages/utils/dist/index.mjs" >&2; exit 1; }
+      echo "ok  root dist/server/index.mjs + dist/nitro.json, packages/utils/dist, no .output/, no apps/"
+    else
+      echo "ok  root dist/server/index.mjs + dist/nitro.json, no .output/, no apps/"
+    fi
+    ;;
+  frontend/monorepo)
+    # The app is the only artefact that matters, and there is no server anywhere in this workspace:
+    # a `dist/server/index.mjs` at the root would mean the layout grew a server the mode did not ask
+    # for.
+    [ -f apps/website/dist/index.html ] || { echo "the app build produced no apps/website/dist/index.html" >&2; exit 1; }
+    [ ! -e dist/server/index.mjs ] || { echo "this workspace has no server, but the root built one" >&2; exit 1; }
+    if [ "${GUIDE_PLACEHOLDER:-}" = yes ]; then
+      [ -f packages/utils/dist/index.mjs ] || { echo "the placeholder package build produced no packages/utils/dist/index.mjs" >&2; exit 1; }
+      echo "ok  apps/website/dist, packages/utils/dist, no root server output"
+    else
+      echo "ok  apps/website/dist, no root server output"
+    fi
+    ;;
 esac
 
 step "static check after the build"
@@ -3218,12 +3798,14 @@ step "static check after the build"
 $VP check
 
 step "tests"
-if [ "$GUIDE_LAYOUT" = monorepo ]; then
-  # The root's test script scans the workspace, so this runs every package's tests once. The `-r`
-  # form would run the root's scan *and* each package's own test script — the same file twice.
-  $VP run test
-elif node -e 'process.exit(require("./package.json").scripts?.test ? 0 : 1)'; then
-  pm_run run test
+if node -e 'process.exit(require("./package.json").scripts?.test ? 0 : 1)'; then
+  if [ "$GUIDE_LAYOUT" = monorepo ]; then
+    # The root's test script scans the workspace, so this runs every package's tests once. The `-r`
+    # form would run the root's scan *and* each package's own test script — the same file twice.
+    $VP run test
+  else
+    pm_run run test
+  fi
 else
   echo "no test script in this profile - nothing to run"
 fi
@@ -3264,7 +3846,82 @@ const get = async (url) => {
   return { status: response.status, type: response.headers.get("content-type") ?? "", body: await response.text() };
 };
 
-if (process.env.GUIDE_LAYOUT === "monorepo") {
+// The app answers its own page, and the page loads this project's entry module. A browser is not
+// part of this verification, so the marker cannot be read from the served HTML (the module injects
+// it when it runs) — it is read from the module the document names, which is the same "the server
+// serves what it points at" claim the SSR shape's smoke makes. Every script the document asks for
+// is followed, because the dev server injects its own client module ahead of the app's entry.
+async function checkApp(url, marker) {
+  const page = await get(`${url}/`);
+  if (page.status !== 200 || !page.type.includes("text/html")) {
+    failures.push(`the app at / answered ${page.status} ${page.type}, expected 200 text/html`);
+    return;
+  }
+  const scripts = [...page.body.matchAll(/<script[^>]+src="([^"]+)"/g)].map((match) => match[1]);
+  if (scripts.length === 0) {
+    failures.push("the app's document has no module entry to load");
+    return;
+  }
+  let found = "";
+  const broken = [];
+  for (const src of scripts) {
+    const module = await get(new URL(src, url).href);
+    if (module.status !== 200 || !module.type.includes("javascript")) {
+      broken.push(`${src} (${module.status} ${module.type})`);
+    } else if (module.body.includes(marker)) {
+      found = src;
+    }
+  }
+  if (!found) {
+    failures.push(
+      broken.length
+        ? `the app's scripts do not all load: ${broken.join(", ")}`
+        : `none of the app's scripts (${scripts.join(", ")}) carries the page marker — this is not the page the skeleton wrote`,
+    );
+  }
+}
+
+if (process.env.GUIDE_MODE === "frontend") {
+  // The app is whatever the dev server of this shape serves: the project itself in the single
+  // layout, the app package in the workspace layout.
+  const appUrl = website || base;
+  if (process.env.GUIDE_LAYOUT === "monorepo") {
+    // The workspace arrangement's app is the one this guide pruned and wrote a marker into, so the
+    // marker is what proves the page is that page.
+    await checkApp(appUrl, "Frontend works");
+  } else {
+    // A single frontend keeps the app its scaffold wrote; the claim here is that its dev server
+    // serves a document, and the marker belongs to the page this guide writes.
+    const page = await get(`${appUrl}/`);
+    if (page.status !== 200 || !page.type.includes("text/html")) {
+      failures.push(`the app at / answered ${page.status} ${page.type}, expected 200 text/html`);
+    }
+  }
+
+  // The whole point of the proxy: the backend sees the path WITHOUT the /api prefix. A proxy
+  // that forwards the prefix unconsumed answers 404 here, and a missing proxy answers 200 with
+  // this app's HTML - so require JSON and require the route to exist behind the prefix.
+  const proxied = await get(`${appUrl}/api${path}`);
+  if (proxied.status !== 200 || !proxied.type.includes("application/json")) {
+    failures.push(`/api${path} answered ${proxied.status} ${proxied.type}, expected 200 application/json from the backend`);
+  } else if (!proxied.body.includes(path)) {
+    failures.push(`/api${path} did not reach the backend as ${path}: ${proxied.body.slice(0, 160)}`);
+  }
+
+  const unknown = await get(`${appUrl}/api/definitely-not-a-route`);
+  if (unknown.status !== 404 || unknown.type.includes("text/html")) {
+    failures.push(`an unknown /api path answered ${unknown.status} ${unknown.type}, expected 404 rather than the app's HTML`);
+  }
+
+  // Outside /api/, the app's own fallback answers — that contrast is what makes the check above
+  // meaningful rather than incidental.
+  if (process.env.GUIDE_LAYOUT === "monorepo") {
+    const outside = await get(`${appUrl}/definitely-not-a-route`);
+    if (outside.status !== 200 || !outside.type.includes("text/html")) {
+      failures.push(`an unknown non-/api path answered ${outside.status} ${outside.type}, expected the app's HTML fallback`);
+    }
+  }
+} else if (process.env.GUIDE_MODE === "fullstack" && process.env.GUIDE_LAYOUT === "monorepo") {
   // The split shape on its own server (no frontend URL given): the routes carry no /api prefix,
   // and the server answers JSON because no page is rendered in this package.
   const direct = await get(`${base}/hello`);
@@ -3294,39 +3951,7 @@ if (process.env.GUIDE_LAYOUT === "monorepo") {
     // The built artefact and the dev server are the same server here; the app's half of the smoke
     // is the run with the frontend URL.
   } else {
-    // The app answers its own page, and the page loads this project's entry module. A browser is
-    // not part of this verification, so the marker cannot be read from the served HTML (it is
-    // injected by the module when it runs) — it is read from the module the document names, which
-    // is the same "the server serves what it points at" claim the SSR shape's smoke makes. Every
-    // script the document asks for is followed, because the dev server injects its own client
-    // module ahead of the app's entry.
-    const page = await get(`${website}/`);
-    if (page.status !== 200 || !page.type.includes("text/html")) {
-      failures.push(`the app at / answered ${page.status} ${page.type}, expected 200 text/html`);
-    } else {
-      const scripts = [...page.body.matchAll(/<script[^>]+src="([^"]+)"/g)].map((match) => match[1]);
-      if (scripts.length === 0) {
-        failures.push("the app's document has no module entry to load");
-      } else {
-        let found = "";
-        const broken = [];
-        for (const src of scripts) {
-          const module = await get(new URL(src, website).href);
-          if (module.status !== 200 || !module.type.includes("javascript")) {
-            broken.push(`${src} (${module.status} ${module.type})`);
-          } else if (module.body.includes("Split works")) {
-            found = src;
-          }
-        }
-        if (!found) {
-          failures.push(
-            broken.length
-              ? `the app's scripts do not all load: ${broken.join(", ")}`
-              : `none of the app's scripts (${scripts.join(", ")}) carries the page marker — this is not the page the skeleton wrote`,
-          );
-        }
-      }
-    }
+    await checkApp(website, "Split works");
 
     // The whole point of the proxy chain: a request to the *frontend's* port on /api/* is answered
     // by the workspace root server as /hello. A missing proxy answers 200 with this app's HTML, a
@@ -3371,26 +3996,6 @@ if (process.env.GUIDE_LAYOUT === "monorepo") {
     if (unknown.status !== 200 || !unknown.type.includes("text/html")) {
       failures.push(`an unknown non-/api path answered ${unknown.status} ${unknown.type}, expected the app's HTML fallback`);
     }
-  }
-} else if (process.env.GUIDE_MODE === "frontend") {
-  const app = await get(`${base}/`);
-  if (app.status !== 200 || !app.type.includes("text/html")) {
-    failures.push(`the app at / answered ${app.status} ${app.type}, expected 200 text/html`);
-  }
-
-  // The whole point of the proxy: the backend sees the path WITHOUT the /api prefix. A proxy
-  // that forwards the prefix unconsumed answers 404 here, and a missing proxy answers 200 with
-  // this app's HTML - so require JSON and require the route to exist behind the prefix.
-  const proxied = await get(`${base}/api${path}`);
-  if (proxied.status !== 200 || !proxied.type.includes("application/json")) {
-    failures.push(`/api${path} answered ${proxied.status} ${proxied.type}, expected 200 application/json from the backend`);
-  } else if (!proxied.body.includes(path)) {
-    failures.push(`/api${path} did not reach the backend as ${path}: ${proxied.body.slice(0, 160)}`);
-  }
-
-  const unknown = await get(`${base}/api/definitely-not-a-route`);
-  if (unknown.status !== 404 || unknown.type.includes("text/html")) {
-    failures.push(`an unknown /api path answered ${unknown.status} ${unknown.type}, expected 404 rather than the app's HTML`);
   }
 } else if (process.env.GUIDE_MODE === "fullstack") {
   // The render marker is the assertion, not the status code: a client-only shell answers 200
@@ -3459,41 +4064,68 @@ console.log(`${what}: ok`);
 NODE
 }
 
+# What this shape runs, read once: a server artefact exists in the modes that have a server, and
+# the root is that server in the monorepo layout; an app package exists in the modes that keep the
+# frontend the template wrote.
+has_server=no
+case "$GUIDE_MODE" in
+  backend|fullstack) has_server=yes ;;
+  frontend) : ;;
+  *) echo "unsupported mode: $GUIDE_MODE" >&2; exit 1 ;;
+esac
+has_app=no
+case "$GUIDE_MODE" in
+  frontend|fullstack) has_app=yes ;;
+  backend) : ;;
+esac
+
 # The artefact first: it is a plain node process, so it starts and stops deterministically, and
 # stopping it frees GUIDE_DEV_PORT for the dev server that follows.
-if [ "$GUIDE_MODE" = "backend" ] || [ "$GUIDE_MODE/$GUIDE_LAYOUT" = "fullstack/single" ] || [ "$GUIDE_LAYOUT" = monorepo ]; then
-  PORT="$GUIDE_DEV_PORT" node dist/server/index.mjs > prod.log 2>&1 &
+if [ "$has_server" = yes ]; then
+  PORT="$dev_port" node dist/server/index.mjs > prod.log 2>&1 &
   prod_pid=$!
   # Every one of these answers on the same port its dev server will use; the readiness path is the
   # one each profile is guaranteed to serve (the SSR shape's renderer answers `/`, the others'
   # route answers `/hello`).
   if [ "$GUIDE_MODE/$GUIDE_LAYOUT" = "fullstack/single" ]; then
-    wait_ready "http://127.0.0.1:$GUIDE_DEV_PORT/" prod.log
+    wait_ready "http://127.0.0.1:$dev_port/" prod.log
   else
-    wait_ready "http://127.0.0.1:$GUIDE_DEV_PORT/hello" prod.log
+    wait_ready "http://127.0.0.1:$dev_port/hello" prod.log
   fi
-  smoke "http://127.0.0.1:$GUIDE_DEV_PORT" "built server (node dist/server/index.mjs)"
+  smoke "http://127.0.0.1:$dev_port" "built server (node dist/server/index.mjs)"
   kill "$prod_pid" 2>/dev/null || true
   wait "$prod_pid" 2>/dev/null || true
   prod_pid=""
 fi
 
 if [ "$GUIDE_LAYOUT" = monorepo ]; then
-  # Two dev servers, because this shape is two packages with two of them: the workspace root
-  # server (the dev form of the artefact above) and the frontend app. The proxy chain only exists
-  # while both are up, so both are started here and the smoke reads the app's port.
-  $VP dev --port "$GUIDE_DEV_PORT" --strictPort > server-dev.log 2>&1 &
-  dev_pid=$!
-  $VP -C apps/website dev --port "$website_port" --strictPort > website-dev.log 2>&1 &
-  website_pid=$!
-  wait_ready "http://127.0.0.1:$GUIDE_DEV_PORT/hello" server-dev.log
-  wait_ready "http://127.0.0.1:$website_port/" website-dev.log
-  smoke "http://127.0.0.1:$GUIDE_DEV_PORT" "dev server (workspace root)" "http://127.0.0.1:$website_port"
+  # The dev servers are the packages this arrangement has: the root (the dev form of the artefact
+  # above) when the root is an application, and the app where there is one. The proxy chain only
+  # exists while both ends are up, so when both exist they are started together and the smoke reads
+  # the app's port.
+  if [ "$has_server" = yes ]; then
+    $VP dev --port "$dev_port" --strictPort > server-dev.log 2>&1 &
+    dev_pid=$!
+    wait_ready "http://127.0.0.1:$dev_port/hello" server-dev.log
+  fi
+  if [ "$has_app" = yes ]; then
+    $VP -C apps/website dev --port "$website_port" --strictPort > website-dev.log 2>&1 &
+    website_pid=$!
+    wait_ready "http://127.0.0.1:$website_port/" website-dev.log
+  fi
+  if [ "$has_server" = yes ] && [ "$has_app" = yes ]; then
+    smoke "http://127.0.0.1:$dev_port" "dev server (workspace root)" "http://127.0.0.1:$website_port"
+  elif [ "$has_app" = yes ]; then
+    # The app is the only dev server in this workspace, so its port is the one the smoke reads.
+    smoke "http://127.0.0.1:$website_port" "dev server (apps/website)"
+  else
+    smoke "http://127.0.0.1:$dev_port" "dev server (workspace root)"
+  fi
 else
-  $VP dev --port "$GUIDE_DEV_PORT" --strictPort > dev.log 2>&1 &
+  $VP dev --port "$dev_port" --strictPort > dev.log 2>&1 &
   dev_pid=$!
-  wait_ready "http://127.0.0.1:$GUIDE_DEV_PORT/" dev.log
-  smoke "http://127.0.0.1:$GUIDE_DEV_PORT" "dev server"
+  wait_ready "http://127.0.0.1:$dev_port/" dev.log
+  smoke "http://127.0.0.1:$dev_port" "dev server"
 fi
 
 step "verification passed"
@@ -3503,7 +4135,8 @@ step "verification passed"
 
 Report, in this order:
 
-1. **What was built** — the mode, layout, framework (frontend, SSR and split modes) and package
+1. **What was built** — the mode, layout, framework (frontend, SSR and split modes, and the
+   workspace layouts' app base) and package
    manager that were chosen, and the versions that actually resolved: `docs/provenance.md` is the
    record.
 2. **What was verified** — the Phase 6 result, and the fact that the type checker was proven
@@ -3513,17 +4146,24 @@ Report, in this order:
    built server *and* on the dev server, with the same-origin API answered on the same port; a
    split run verified the workspace build and check, and the proxy chain — the app's page from the
    app's port, `/api/hello` from that same port arriving at the root server as `/hello`, and an
-   unknown `/api/…` path answering the server's 404 rather than the app's HTML.
+   unknown `/api/…` path answering the server's 404 rather than the app's HTML. A backend workspace
+   run verified that the workspace build builds the root (`dist/server/index.mjs` out of
+   `vp run -r build`) and that the dev server answers the route with no `/api` prefix; a frontend
+   workspace run verified the app's page from the app's port and the proxied `/api/…` route
+   arriving at the answered backend without the prefix.
 3. **What is deliberate** — the pinned prerelease toolchain, and the pinned prerelease Nitro in
-   the modes that have a server; `.env` being committed while `*.local` is not (the frontend and
-   split modes); the constraints in `AGENTS.md` correcting the tool's own `vp env doctor` advice
+   the modes that have a server; `.env` being committed while `*.local` is not (the profiles with a
+   proxy); the constraints in `AGENTS.md` correcting the tool's own `vp env doctor` advice
    and carrying only the rules this profile has; the frontend app shipping no test harness at all,
    against the server profiles' wired-but-empty `tests/`; Nitro's output living in `dist/` (server
    modes), which is why the run added no ignore rule; in the SSR shape, the absence of
    `index.html` — the template is what makes the outlet comment a silent switch, so the shape
-   deletes it and verification asserts the render marker instead; and, in the split shape, one
-   version per dependency in the workspace catalog, a proxy in the frontend package that
-   reproduces the production edge, and the root server that never learns the `/api` prefix exists.
+   deletes it and verification asserts the render marker instead; and, in the workspace layouts, one
+   version per dependency in the workspace catalog, a proxy in the frontend package where there is
+   one, a server that never learns the `/api` prefix exists, root commands that name only what the
+   workspace has (a script naming a deleted package would exit 0 having run nothing), and — when the
+   placeholder package was kept — a sub-package that carries its own skeleton, configuration and
+   build.
 4. **What is not covered** — browser hydration is not verified (the smoke test asserts the
    server's response, not the browser's), and production deployment topology is out of scope. In
    backend mode only the one initialized route is verified: a real route table is something
@@ -3532,7 +4172,11 @@ Report, in this order:
    mismatches, event handlers, HMR — is outside this verification by construction. In the split
    shape only the one route and the one page are verified, and the reverse proxy that stands in
    front of both in production is out of scope: the dev proxy is the measured reproduction of its
-   rule, not a deployment.
+   rule, not a deployment. The backend workspace verifies the root server the same way the backend
+   mode does, and nothing about the workspace changes that; the frontend workspace verifies the app
+   and its proxy against the backend that was answered at the decision point, and if that is the
+   placeholder address then the proxy is as verified as the address is — a `502` is the honest
+   result, and pointing `DEV_PROXY` at the real backend is the first thing to fix.
 5. **Next steps** — put the project under version control yourself (`git init`; this guide
    deliberately does not touch version control), then start the first feature with
    `/grill-with-docs` so the design conversation happens before the code.
@@ -3544,9 +4188,11 @@ Report, in this order:
    move the toolchain forward. In the server modes, `./node_modules/.bin/vp test` runs the suite
    (empty by design until the first test), and the build's artefact is started with
    `node dist/server/index.mjs` — which, in the SSR shape, serves the rendered page and the
-   `/api/…` routes on the same port. In the split shape the commands are the ones registered in the
-   root manifest: `./node_modules/.bin/vp run dev:server` (the root server on `GUIDE_DEV_PORT`),
-   `./node_modules/.bin/vp run dev:website` (the app on `GUIDE_WEBSITE_PORT`),
+   `/api/…` routes on the same port. In the workspace layouts the commands are the ones registered
+   in the
+   root manifest: `./node_modules/.bin/vp run dev:server` (the root server on `GUIDE_DEV_PORT`,
+   where the root is an application), `./node_modules/.bin/vp run dev:website` (the app on
+   `GUIDE_WEBSITE_PORT`, where there is one),
    `./node_modules/.bin/vp run check` / `./node_modules/.bin/vp run test` /
    `./node_modules/.bin/vp run build`, `./node_modules/.bin/vp run ready` as the one-command gate,
    `./node_modules/.bin/vp run -r <task>` for a task across every package, and

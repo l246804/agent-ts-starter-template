@@ -49,7 +49,7 @@ Which kind of project is being initialized: `frontend`, `fullstack`, or `backend
 _Avoid_: 类型, 模式, 项目种类
 
 **布局 (layout)**:
-Whether the target project is a single repo or a monorepo. Orthogonal to 形态 — a monorepo is a way of arranging a 形态, never a fourth one. In `fullstack` mode it is also the switch between the two shapes: `single` is SSR, `monorepo` is the split frontend/backend.
+Whether the target project is a single repo or a monorepo. Orthogonal to 形态 — a monorepo is a way of arranging a 形态, never a fourth one; all three modes support both. In `fullstack` mode it is also the switch between the two shapes: `single` is SSR, `monorepo` is the split frontend/backend. In the other two modes it is only the layout: `backend` × `monorepo` is the backend workspace shape, `frontend` × `monorepo` the frontend workspace shape.
 _Avoid_: monorepo 形态, 结构
 
 **SSR 形状 (SSR shape)**:
@@ -59,6 +59,14 @@ _Avoid_: SSR 形态, SSR 模式, 服务端渲染项目
 **前后分离形状 (split shape)**:
 `fullstack` × `monorepo` — one pnpm workspace whose root package is the server (Nitro v3 as a Vite plugin, `defaultPackage: "."`, routes with no `/api` prefix) and whose frontend is the app under `apps/website`. The two halves are two dev servers on two ports, and the app reaches the API through a dev proxy that strips `/api/` exactly as the production reverse proxy does. Versions live in the workspace catalog; the plan (布局) is one workspace, the deployment is two artefacts.
 _Avoid_: monorepo 形态, 前后端分离项目, 微服务
+
+**后端工作区形状 (backend workspace shape)**:
+`backend` × `monorepo` — the same server the single layout builds, in the workspace layout: the root package *is* the Nitro server, the app the template wrote (`apps/website`) is deleted in the same run because a backend project has no client, and the workspace's second package is the layout's placeholder decision (`packages/utils`, kept or deleted). Every root command is re-pointed at what the workspace has (`dev:server`, `check`, `test`, `build`, `ready`); a script left naming the deleted package would exit 0 having run nothing.
+_Avoid_: 后端 monorepo（口语可以，正式文本用「后端工作区形状」）
+
+**前端工作区形状 (frontend workspace shape)**:
+`frontend` × `monorepo` — the same app the split shape uses, under a root that is only a shell: the root owns the catalog and the commands (`dev:website`, `check`, `ready`), nothing in the workspace compiles a server, and the app's backend is somebody else's — named by `GUIDE_DEV_PROXY` (with the `http://127.0.0.1:3000` placeholder) and reached through the dev proxy in `apps/website`.
+_Avoid_: 前端 monorepo（口语可以，正式文本用「前端工作区形状」）
 
 **骨架 (skeleton)**:
 The file structure of the initialized target project, with no business logic in it.
