@@ -1,0 +1,5 @@
+# Harness scratch space: extracted plans, run logs, generated projects.
+e2e/.work/
+
+# Local research scratch (facts packs, spikes, probe logs).
+.scratch/
