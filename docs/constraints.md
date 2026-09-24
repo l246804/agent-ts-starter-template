@@ -1,4 +1,4 @@
-# 约束清单（工作稿）
+# 约束清单
 
 `GUIDE.md` 的「约束」段（英文）由这份清单生成。🔧 = 初始化时必须落地的动作；📌 = 长期规则；⚠️ = 已知边界（不是规则，是必须写明的限制）。
 
@@ -143,6 +143,12 @@
     - **判据**：写防御前先问"这个状态出现过吗，还是我想象的？"——想象出来的不加；实测到且无声的，必须变成响的。
     - 本指南中符合该边界的防御**只有一处**：`DEV_PROXY` 守卫（#36）。并且**用消除成因代替加分支**——`DEV_PROXY` 的 mode 问题靠"改放 `.env`"解决，而不是靠加 `command === "serve"` 判断。
 
+40. 📌 **skills 的安装与校验**：安装用 `skills` CLI 的**空格名单**写法 `--skill name1 name2`；**安装后必须校验 `skills-lock.json` 的名字集合**等于上游 manifest 解析出的名单。🔧 指南 Phase 4：运行时从上游 `.claude-plugin/plugin.json` 解析名单 → 安装 → 逐名比对 lockfile。
+    - ⚠️ **退出码会说谎**：`--skill=<name>`（上游自己文档里的等号写法）在 1.7.0 上**静默忽略**，把源仓库的**全部**技能装下来、exit 0。绿色只有一个来源：lockfile 的名字集合。
+    - 名单**不冻结在本仓库**，运行时解析，上游新增/晋升的技能自动跟上（用户故事 29–31）。证据：`docs/research/mattpocock-skills-install.md`。
+
+41. 📌 **skills 的来源要记在出生证明里**：`skills-lock.json` 只记内容哈希、**不记上游 revision**，所以 Phase 4 另外记录安装时的上游 commit（用于 hash 对不上时的比对），出生证明的「Agent skills」段同时给出 source / revision / 安装器版本 / lockfile 角色。
+
 ## 客户侧落点（Q27/Q28 定案）
 
 `GUIDE.md` 执行后，本清单里的内容按**四类**落到目标项目；不发货的部分留在本仓库。
@@ -176,6 +182,16 @@
 - **`docs/agent-notes.md` 刻意不放进 `docs/agents/`**：后者是 `setup-matt-pocock-skills` 的产物目录，它第 1 步会探测"我的产出是否已存在"，混入会干扰它的判断。
 - **规则与 ADR 互相指认**：AGENTS.md 给做法，ADR 给理由与"什么情况下可以推翻"。
 
+### 逐条对齐（机器可查）
+
+本清单的每条（编号项 `C1..C41`、边界项 `B1..B28`）与仓库里的继承 ADR（`ADR-0001..`）一起构成**条目空间**；每条要么在 `e2e/coverage.mjs` 里有「发货行」（目标项目某文档的某一节、某种形态、一个 marker），要么在该文件的 `NOT_SHIPPED` 里声明不发货的去处（指南步骤 / 验证记录 / 只留本仓库）。两个方向都由 harness 断言：
+
+- **无遗漏**：每条发货行的 marker 必须出现在它声明的文档与节里（`assert.mjs`，逐 profile 跑）；
+- **无编造**：目标项目文档里的**每一个块**必须被某条发货行认领——bullet、prose 段、标题都算（同一断言的反方向，同一次运行里检查），所以往已发货的节里加一句散文同样会红；
+- **按形态裁剪**：两个方向都带 `when` 形态过滤，所以"不该出现的条目出现在某形态"与"该出现的条目缺失"都会红。
+
+条目空间是**完整且双向**的：每个 `C*`/`B*` 与每个 `ADR-*` 要么是至少一条发货句的来源，要么在 `NOT_SHIPPED` 里声明去处与理由，两边都出现或都不出现都红。表格本身由 `node e2e/coverage.mjs --self-check` 校验（条目空间与表格互相完整、每个 marker 都出自 `GUIDE.md` 的正文、`NOT_SHIPPED` 的落点存在、profile 集覆盖每个 guard 接受的 (形态, 布局) 与每个 monorepo arrangement 的两支占位答案、每个 profile 都出现在 `GUIDE.md` 与 `e2e/README.md` 里、共享的版本 pin 在各 profile 间一致），`node e2e/coverage.mjs --list` 打印完整矩阵；`run.sh` 的反向控制把**两个方向各弄红一次**（种一条无人认领的 bullet、删一条已声明的 bullet）。全矩阵的一次跑通记录见 `docs/verification.md`。
+
 ## 已知边界
 
 - ⚠️ **react-ts 脚手架的 `plugins` 是 `lazyPlugins(() => [react()])`**：Nitro 必须插进那个数组里（`lazyPlugins(() => [nitro(), react()])`）。若另起一个顶层 `plugins:` 键，JS 重复键会让 **Nitro 被静默丢弃**（与"只加 import 不调用"同一类失败）。
@@ -206,6 +222,7 @@
 - ⚠️ **`vp check` 绿 ≠ 构建绿**：`vp check` 的类型检查由 tsgolint（基于 TS7 Go 工具链）驱动，与你脚本里的 `tsc` / `vue-tsc` 是**两个引擎**。实测 Vue + TS7 下构建脚本全挂（`vue-tsc -b` 报 `ERR_PACKAGE_PATH_NOT_EXPORTED './lib/tsc'`）而 `vp check` 仍然 exit 0。→ verify 必须**同时**跑 `vp check` 与构建脚本。
 - ⚠️ `CI=1` 时裸 `pnpm install` 会 `ERR_PNPM_OUTDATED_LOCKFILE`（需 `--no-frozen-lockfile`）。
 - ⚠️ vp 脚手架的 `devEngines.packageManager` 会让 `npm pkg set …` 失败（`EBADDEVENGINES`）——改 package.json 必须直接编辑 JSON。
+- ⚠️ **工作区根是应用时，根程序就是脚手架的 `tsconfig.json`**（无 `include` → 覆盖根下**每一个** TypeScript 文件：`server/`、`tests/`、`vite.config.ts`、`nitro.config.ts`），所以**不写**第二个合并程序——这一点与单仓服务端形态（后端单仓 / SSR 的合并 tsconfig）相反，也是"根里种一个类型错误仍然让 `vp check` 变红"的原因。
 
 ## 待办
 

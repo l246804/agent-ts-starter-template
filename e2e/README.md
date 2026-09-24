@@ -4,12 +4,15 @@ The guide's only seam is a full execution of the guide: an empty directory goes 
 verifiable project comes out. This directory is that execution, made repeatable.
 
 ```bash
-bash e2e/run.sh --help
+bash e2e/run.sh --help          # one profile
+bash e2e/matrix.sh              # every profile, then rewrite docs/verification.md
 ```
 
-That prints the flags and the ordered list of what the harness does — the header of `run.sh`
-is the one place that list lives, so this file does not keep a copy of it. A run exits
-non-zero at the first failure and prints where its logs went.
+`run.sh --help` prints the flags and the ordered list of what the harness does — the header of
+`run.sh` is the one place that list lives, so this file does not keep a copy of it. A run exits
+non-zero at the first failure and prints where its logs went. `matrix.sh` runs the profiles in
+order, captures each run's output under `e2e/.work/matrix/`, rewrites the record from what
+actually happened, and exits non-zero unless every profile passed.
 
 ## What the harness guarantees
 
@@ -62,6 +65,8 @@ non-zero at the first failure and prints where its logs went.
   placeholder answer (all without writing anything), make the
   route-scan assertion catch a test file planted next to the routes — a rule a freshly
   initialized project has no way to violate, so it is made to fail on purpose — make the
+  coverage table fail in both directions (a planted bullet no source item declares, and a declared
+  bullet removed from the document) — make the
   verify block go red on a planted type error, planted in the app's `src/` for a frontend profile,
   in `src/` or `server/` where those exist, i.e. where that profile's source lives, and make the
   package-name rule fail: in any workspace a control plants the template's own
@@ -83,10 +88,10 @@ non-zero at the first failure and prints where its logs went.
   intact.
 - **Both branches of the setup decision point (Phase 4.5) are run, by the profiles themselves.**
   `frontend-single` answers `yes` — with a GitHub tracker and a convention whose ADR directory is
-  not the guide's default — and the other five answer `no`. So one end-to-end run proves the flow's
+  not the guide's default — and the other eight answer `no`. So one end-to-end run proves the flow's
   writes (the skill's seed files, the `## Agent skills` brief in `AGENTS.md`), the ADR landing point
   that comes out of the convention, the tracker-conditional trap in `docs/agent-notes.md`, and the
-  provenance sentence that records the convention as the source; the other five prove the deferred
+  provenance sentence that records the convention as the source; the other eight prove the deferred
   branch (no `docs/agents/`, no brief, no tracker trap, the default landing point recorded as an
   assumption). The controls then prove what no single pass can: the guard refuses a `yes` whose
   questions were never answered and the one answer no step can write (`other`, the user's own
@@ -99,8 +104,25 @@ non-zero at the first failure and prints where its logs went.
   the skill's generated files and a section the flow never wrote comes through untouched.
 - **Profiles are explicit.** A profile is a pre-answered answers file plus assertions;
   `frontend/single`, `backend/single`, `fullstack/single`, `fullstack/monorepo`,
-  `backend/monorepo` and `frontend/monorepo` have both, and `assert.mjs` fails rather than pass
-  quietly for a profile it has no checks for.
+  `fullstack/monorepo-placeholder-no`, `backend/monorepo`, `backend/monorepo-placeholder-no`,
+  `frontend/monorepo` and `frontend/monorepo-placeholder-yes` have both, and `assert.mjs` fails
+  rather than pass quietly for a profile it has no checks for. Every monorepo arrangement is run
+  both ways the placeholder decision can go, so no arrangement carries a branch that has never
+  been built.
+- **The shipped documents are aligned with the master list, both ways.** `e2e/coverage.mjs`
+  declares, for every item in `docs/constraints.md` (and for the inherited ADRs), which shipped
+  bullet — of `AGENTS.md`'s constraints section or of `docs/agent-notes.md` — carries it in which
+  shapes. `assert.mjs` then requires, per profile, that every declared row is present in the
+  section it names (no rule the project was not told) and that every bullet the project carries is
+  claimed by a row (no text without a source item — bullets, prose paragraphs and headings alike,
+  so a sentence added to a shipped section fails too); the shape filter is inside both directions,
+  so trimming is proved rather than assumed. `node e2e/coverage.mjs --self-check` proves the table
+  itself — every master-list item ships or is declared not-shipped, every id exists, every marker
+  is a fragment of the guide's own text — and `run.sh` runs it before the first step.
+- **One full pass is one artifact.** `bash e2e/matrix.sh` runs every profile, then
+  `e2e/record.mjs` rewrites `docs/verification.md` from the runs' own results, logs and produced
+  provenance — the record cannot claim more than those runs prove, and a profile that is missing
+  or not `PASS` is written as such and makes the command exit non-zero.
 
 ## What it deliberately does not do
 
@@ -126,11 +148,11 @@ mechanical half; the guide is written for the half that needs judgement:
 - **Judgement inside the steps.** Every step is a deterministic script, but a step that fails
   is a report to read, not a script to tweak. The harness stops at exactly the same point the
   guide tells an agent to stop.
-- **Profiles that are not implemented yet.** All six combos of the three modes and the two layouts
-  have both a profile file and assertions: `frontend/single`, `frontend/monorepo`, `backend/single`,
-  `backend/monorepo`, `fullstack/single` (the SSR shape) and `fullstack/monorepo` (the split shape).
-  `assert.mjs` fails rather than pass silently for any profile it has no checks for, so a mode or
-  layout no profile covers is a report, never a green run.
+- **Covering a shape with a profile it has no assertions for.** `assert.mjs` fails rather than pass
+  silently for a profile it has no checks for, and the coverage self-check keeps the profile set
+  complete in the other direction: every (mode, layout) the profile guard implements has a profile
+  file, and every monorepo arrangement runs both answers of the placeholder decision. A new
+  arrangement is a failing check until it has a profile, never a quiet gap.
 
 ## Environment notes
 
@@ -175,25 +197,35 @@ mechanical half; the guide is written for the half that needs judgement:
 
 ---
 
-## The six profiles
+## The nine profiles
+
+The three modes and the two layouts give six (mode, layout) combinations, and the layout's
+placeholder decision doubles the three monorepo ones: **every arrangement is run both ways the
+decision can go**, so a branch that has never been built cannot hide behind its sibling.
 
 | Profile | What it initializes | The stub it needs |
 | --- | --- | --- |
 | `frontend-single` | a single-project frontend (`react-ts`) with the dev proxy at the root, and the **setup flow run now** (`yes`, GitHub tracker, ADRs in `docs/decisions/`) | `__STUB_PORT__` (its backend is external) |
 | `backend-single` | a Nitro v3 server at the project root, no client | none |
 | `fullstack-single` | the SSR shape: server-rendered page + same-origin API, no `index.html` | none |
-| `fullstack-monorepo` | the split shape: root server + `apps/website` + proxy chain | none (the root server is the target) |
+| `fullstack-monorepo` | the split shape: root server + `apps/website` + proxy chain, placeholder kept | none (the root server is the target) |
+| `fullstack-monorepo-placeholder-no` | the same split shape with the placeholder package deleted | none |
 | `backend-monorepo` | a backend workspace: the root is the server, `apps/` deleted, placeholder kept | none |
+| `backend-monorepo-placeholder-no` | the same backend workspace with the placeholder deleted too — the workspace's only package is the root | none |
 | `frontend-monorepo` | a frontend workspace: shell root + `apps/website`, placeholder deleted | `__STUB_PORT__` (the app proxies to it) |
+| `frontend-monorepo-placeholder-yes` | the same frontend workspace with the placeholder kept: the shell root's second package, with its own skeleton and build | `__STUB_PORT__` |
 
-The two placeholder branches are run once each, in different profiles: `backend-monorepo` keeps
-`packages/utils` (so its own skeleton, config and build are asserted) and `frontend-monorepo`
-deletes it (so the layout-only answer is asserted). The split shape keeps it too; its `no` branch
-is the one combination no profile runs, and the guide says so.
+The placeholder branches are all run, in every arrangement: keeping `packages/utils` is asserted
+where it is kept (its own skeleton, config and build; `backend-monorepo`,
+`frontend-monorepo-placeholder-yes`, `fullstack-monorepo`), and deleting it is asserted where it is
+deleted (`apps/` and `packages/` gone, the command set re-pointed; `backend-monorepo-placeholder-no`,
+`frontend-monorepo`, `fullstack-monorepo-placeholder-no`). `backend-monorepo-placeholder-no` is also
+the one profile whose workspace has no compiled package at all, so the birth certificate's
+TypeScript line is the stated fact rather than a version read out of a package.
 
 The setup decision point is run once per branch the same way: `frontend-single` is the `yes`
 profile (with a convention whose ADR directory is not the guide's default, so the landing point is
-proven to come from the project), and the other five are the `no` profiles. The sub-answers no
+proven to come from the project), and the other eight are the `no` profiles. The sub-answers no
 profile takes are run once each by that profile's controls, in a scratch project that has the
 installed skill's seeds: a `local` tracker, the default ADR directory, then a `gitlab` switch that
 also records the `multi` layout. The one answer nothing runs is `other`, whose file is the user's

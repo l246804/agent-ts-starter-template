@@ -15,8 +15,12 @@ The decision points supplied up front as `GUIDE_*` environment variables, which 
 _Avoid_: 参数, 配置, 环境变量
 
 **profile**:
-One supported (形态, 布局) combination with its pre-answered answers file and its own harness assertions — the unit a later ticket adds, and the only thing `e2e/run.sh --profile` selects.
+One supported combination of answers — a (形态, 布局) pair plus the branch of the decision that has more than one (the layout's 占位子包 decision, the setup decision) — with its pre-answered answers file and its own harness assertions. It is the unit a later ticket adds, and the only thing `e2e/run.sh --profile` selects.
 _Avoid_: 模版, 场景, 配置集
+
+**覆盖矩阵 (coverage matrix)**:
+The item space this repository owns — every numbered item and boundary of `docs/constraints.md`, plus the inherited ADRs — mapped onto the shipped text of each profile's two documents, alongside the profile set that runs both answers of the monorepo layout's 占位子包 decision and both branches of the setup decision (the guide's deliberately unexercised branches — the TS bridge, other package managers, other bases, `GUIDE_TRACKER=other` — are listed as such, not covered). It is machine-checked in both directions (no item unshipped, no shipped bullet unclaimed), run in full by `bash e2e/matrix.sh`, and recorded in `docs/verification.md`.
+_Avoid_: 测试矩阵, 场景表, 覆盖率
 
 **验证段 (verify step)**:
 The guide's last step, marked `guide:verify`: the single assertion set for one initialization, extracted and run as-is by the harness rather than re-implemented next to it.

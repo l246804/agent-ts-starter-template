@@ -4,6 +4,9 @@
 #   ./e2e/run.sh [--profile <name>] [--workdir <dir>]
 #
 # What it does, in order:
+#   0. proves the coverage table itself (e2e/coverage.mjs --self-check): every item of
+#      docs/constraints.md is shipped or declared not-shipped, every id exists, every marker is a
+#      fragment of GUIDE.md — a stale row costs milliseconds here instead of a full run
 #   1. loads the profile's pre-answered decision points (e2e/profiles/<name>.env)
 #   2. creates an empty target directory and extracts GUIDE.md's executable plan
 #      into <workdir> with e2e/extract.mjs
@@ -12,12 +15,13 @@
 #   4. runs the guide's verify block — extracted from GUIDE.md, never re-implemented
 #      here — and reports its exit code
 #   5. runs e2e/assert.mjs for the external-behaviour checks the guide itself does
-#      not make (file tree, document placement, the setup branch's trace, skills
-#      lockfile agreement)
+#      not make (file tree, document placement, the setup branch's trace, the shipped documents
+#      against the coverage table in both directions, skills lockfile agreement)
 #   6. runs the negative controls: the preflight must refuse a non-empty target and an old
 #      Node, the profile guard must refuse an unimplemented mode and every base it does not
 #      re-scaffold without writing anything, the route-scan assertion must catch a test file
-#      planted next to the routes, a workspace whose root script names a missing package must
+#      planted next to the routes, the coverage table must catch a fabricated bullet and a missing
+#      one, a workspace whose root script names a missing package must
 #      be caught as the silent no-op it is, the verify block must go red on a planted type
 #      error, the proxy-bearing profiles' missing DEV_PROXY config must fail loudly instead
 #      of serving the app's HTML, and — in the SSR profile — a planted index.html must stop
@@ -34,6 +38,11 @@
 #      branches themselves are run by the profiles: `frontend-single` answers `yes`, the rest
 #      `no`.
 #
+#
+# It writes <run-dir>/result.env (PASS or FAIL) when the run settles. e2e/matrix.sh runs every
+# profile and e2e/record.mjs turns those files plus the run logs and the produced provenance into
+# docs/verification.md — the record of one full pass.
+#
 # What it is NOT: a replacement for an agent reading GUIDE.md. The guide's decision
 # points are pre-answered here, and the parts that need judgement are listed in
 # e2e/README.md.
@@ -48,7 +57,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --profile) PROFILE_NAME="$2"; shift 2 ;;
     --workdir) WORK_ROOT="$2"; shift 2 ;;
-    --help) sed -n '2,26p' "$0"; exit 0 ;;
+    --help) sed -n '2,47p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -61,8 +70,14 @@ RUN_DIR="$WORK_ROOT/runs/$(date +%Y%m%d-%H%M%S)-$PROFILE_NAME"
 TARGET="$RUN_DIR/target"
 PLAN="$RUN_DIR/plan"
 LOGS="$RUN_DIR/logs"
+RESULT="$RUN_DIR/result.env"
 CACHE="$WORK_ROOT/cache"
 mkdir -p "$TARGET" "$CACHE/npm" "$CACHE/xdg" "$CACHE/pnpm-home" "$LOGS"
+
+# The run's own verdict, in a file: the full-matrix record (e2e/matrix.sh) reads it instead of
+# asking a finished target what happened — the negative controls deliberately leave some targets
+# half-built, so a post-hoc assertion is not the same claim as the run that made them.
+record() { printf 'status=%s\nprofile=%s\nfinished=%s\n' "$1" "$PROFILE_NAME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RESULT"; }
 
 # Cache locations are pinned inside the work directory: the harness must run on
 # machines whose $HOME is not writable (CI sandboxes, this repo's own test rig),
@@ -77,7 +92,11 @@ export PNPM_HOME="$CACHE/pnpm-home"
 MACHINE_PATH="$PATH"
 
 say() { printf '\n\033[1m▸ %s\033[0m\n' "$*"; }
-die() { printf '\n\033[1;31mSTOP: %s\033[0m\n' "$*" >&2; exit 1; }
+die() {
+  printf '\n\033[1;31mSTOP: %s\033[0m\n' "$*" >&2
+  [ -n "${RESULT:-}" ] && [ -d "$(dirname "$RESULT")" ] && record FAIL
+  exit 1
+}
 
 free_port() {
   node -e 'const s = require("node:net").createServer(); s.listen(0, "127.0.0.1", () => { console.log(s.address().port); s.close(); });'
@@ -392,6 +411,48 @@ negative_controls() {
     echo "  refused, and named the route scan (see $LOGS/neg-route-scan.log)"
   fi
 
+  # The coverage table is a check in both directions, so both are made to fail here on purpose: a
+  # planted bullet the table does not declare (fabrication), and a declared bullet that has been
+  # removed (omission). A freshly initialized project has neither, which is exactly why the check
+  # needs a control to be known to work.
+  say "negative control: the coverage table catches a fabricated bullet and a missing one"
+  mkdir -p "$RUN_DIR/negative"
+  cp "$TARGET/AGENTS.md" "$RUN_DIR/negative/AGENTS.md.bak"
+  printf '\n### Invented\n\n- This rule has no source item in the master list and must be caught.\n' >> "$TARGET/AGENTS.md"
+  if node "$E2E_DIR/assert.mjs" --target "$TARGET" --answers "$ANSWERS_FILE" > "$LOGS/neg-doc-fabricated.log" 2>&1; then
+    cp "$RUN_DIR/negative/AGENTS.md.bak" "$TARGET/AGENTS.md"
+    die "assert.mjs accepted a bullet the coverage table does not declare"
+  fi
+  cp "$RUN_DIR/negative/AGENTS.md.bak" "$TARGET/AGENTS.md"
+  grep -q 'no source item claims' "$LOGS/neg-doc-fabricated.log" || {
+    tail -5 "$LOGS/neg-doc-fabricated.log"
+    die "assert.mjs failed with the planted bullet, but not on the coverage table (see $LOGS/neg-doc-fabricated.log)"
+  }
+  echo "  refused the fabricated bullet (see $LOGS/neg-doc-fabricated.log)"
+
+  node -e '
+    const fs = require("node:fs");
+    const path = process.argv[1];
+    const marker = "A green result has to be meaningful";
+    const source = fs.readFileSync(path, "utf8");
+    if (!source.includes(marker)) { console.error("the alignment control found no bullet to remove"); process.exit(1); }
+    fs.writeFileSync(path, source.replace(/- A green result has to be meaningful:[\s\S]*?expectation\.\n/, ""));
+  ' "$TARGET/AGENTS.md" > "$LOGS/neg-doc-omitted.log" 2>&1 || {
+    cp "$RUN_DIR/negative/AGENTS.md.bak" "$TARGET/AGENTS.md"
+    tail -5 "$LOGS/neg-doc-omitted.log"
+    die "the alignment control could not remove a declared bullet"
+  }
+  if node "$E2E_DIR/assert.mjs" --target "$TARGET" --answers "$ANSWERS_FILE" >> "$LOGS/neg-doc-omitted.log" 2>&1; then
+    cp "$RUN_DIR/negative/AGENTS.md.bak" "$TARGET/AGENTS.md"
+    die "assert.mjs accepted a document missing a declared bullet"
+  fi
+  cp "$RUN_DIR/negative/AGENTS.md.bak" "$TARGET/AGENTS.md"
+  grep -q 'is not shipped in agents' "$LOGS/neg-doc-omitted.log" || {
+    tail -5 "$LOGS/neg-doc-omitted.log"
+    die "assert.mjs failed with the bullet removed, but not on the missing item (see $LOGS/neg-doc-omitted.log)"
+  }
+  echo "  refused the missing bullet (see $LOGS/neg-doc-omitted.log)"
+
   say "negative control: preflight refuses a non-empty target"
   local dirty="$RUN_DIR/negative/non-empty-target"
   mkdir -p "$dirty"
@@ -650,6 +711,9 @@ env | grep -E '^GUIDE_[A-Z0-9_]+=' | sort > "$ANSWERS_FILE"
 say "answers"
 sed 's/^/  /' "$ANSWERS_FILE"
 
+say "coverage table: every master-list item is shipped or declared, and every marker is the guide's own text"
+node "$E2E_DIR/coverage.mjs" --self-check | sed 's/^/  /'
+
 say "extracting GUIDE.md"
 run_plan
 
@@ -662,5 +726,6 @@ negative_controls
 say "setup decision point controls"
 setup_controls
 
+record PASS
 say "PASS — $PROFILE_NAME initialized, verified, and asserted"
 echo "  run: $RUN_DIR"

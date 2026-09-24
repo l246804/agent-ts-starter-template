@@ -85,22 +85,25 @@ Because both new shapes are workspaces, the placeholder package (`packages/utils
 all three monorepo profiles: keep it as the home for future shared code, or delete it. Keeping it
 means keeping its own skeleton and configuration (its manifest, tsconfig, Vite config, source and
 test) — pruned of the library starter's publishing shape, with its versions moved into the
-workspace catalog.
+workspace catalog. Both answers are run in every arrangement that has the decision: the split
+shape is initialized with the package kept (`fullstack-monorepo`) and with it deleted
+(`fullstack-monorepo-placeholder-no`), the backend workspace keeps it (`backend-monorepo`) and
+deletes it (`backend-monorepo-placeholder-no`), and the frontend workspace deletes it
+(`frontend-monorepo`) and keeps it (`frontend-monorepo-placeholder-yes`) — so no arrangement
+carries a branch that has never been built.
 
 Two branches are written from the research but **not exercised by this revision's harness**:
 `GUIDE_TNB=yes` (the TypeScript 6 API bridge, needed by `vue-ts`/`svelte-ts`), every package
 manager other than `pnpm`, every SSR base other than `react-ts` — the SSR entry is framework
 code, so the guard refuses those before writing anything rather than generating a project whose
 renderer cannot work — every split-shape app base other than the `vanilla-ts` app the monorepo
-template writes, every monorepo app base other than that same app, and the placeholder answer the
-harness does not take in that profile (`GUIDE_PLACEHOLDER=no` is the one the split profile does not
-exercise; `backend/monorepo` runs `yes` and `frontend/monorepo` runs `no`, so both branches of the
-decision are run once each, in different profiles). Treat a green run in an unexercised branch as
-unproven until it has been run once.
+template writes, and every monorepo app base other than that same app. Treat a green run in an
+unexercised branch as unproven until it has been run once. The profiles themselves are in
+`e2e/profiles/`, and the record of one full pass of all of them is `docs/verification.md`.
 
 The setup decision point is run in both of its branches too: `frontend/single` takes `yes` — with a
 GitHub tracker and a convention whose ADR directory is not the default, which is what proves the
-landing point is read out of the project rather than hardcoded — and the other five profiles take
+landing point is read out of the project rather than hardcoded — and the other eight profiles take
 `no`. The harness's setup controls run the remaining sub-answers once each in a scratch project: a
 `local` and then a `gitlab` tracker (which is also the skill's own tracker-switch re-run), the
 `multi` layout, and a convention that keeps the default `docs/adr/`. `GUIDE_TRACKER=other` is the one
@@ -3911,6 +3914,15 @@ else
   typescript_pin="$GUIDE_TS_VERSION"
 fi
 create_vite_version=$(grep -oE 'create-vite[ @]+[0-9]+\.[0-9]+\.[0-9]+' .vite-plus-create.log | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+# `vp create` resolves create-vite through the package manager's dlx cache and, on the Vite+ this
+# guide pins, prints no version of its own — so when the log carries none, the version is read from
+# where the resolver left it. Best-effort on purpose: this is a record, not an assertion, and a
+# version that cannot be found is written down as not printed rather than guessed at.
+if [ -z "$create_vite_version" ]; then
+  create_vite_version=$(find "${XDG_CACHE_HOME:-$HOME/.cache}/pnpm/dlx" -maxdepth 8 -type f \
+    -path '*create-vite@*/node_modules/create-vite/package.json' 2>/dev/null \
+    | head -1 | sed -E 's#.*/create-vite@([^/]+)/.*#\1#' || true)
+fi
 skills_commit=$(cat .vite-plus-skills-commit)
 skill_count=$(node -p 'Object.keys(require("./skills-lock.json").skills).length')
 installed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -3928,7 +3940,7 @@ dev_port_answer=${GUIDE_DEV_PORT:-}
 # would put a wrong fact in the one document whose whole job is to be the record.
 toolchain_rows="| vite-plus | ${vite_plus_version} | \`${GUIDE_VP_VERSION}\` (prerelease) |
 | TypeScript | ${typescript_version} | \`${typescript_pin}\` |
-| create-vite | ${create_vite_version:-see note below} | \`create-vite@latest\`, unpinnable upstream |"
+| create-vite | ${create_vite_version:-not printed by vp create in this run} | \`create-vite@latest\`, unpinnable upstream |"
 if [ "$GUIDE_MODE" = "backend" ] || [ "$GUIDE_MODE" = "fullstack" ]; then
   nitro_version=$(node -p 'require("./node_modules/nitro/package.json").version')
   # The extractor's rule is that a `$GUIDE_…` without a default must be answered by every
@@ -4035,8 +4047,9 @@ ${choice_rows}
 ${toolchain_rows}
 
 create-vite is the one unpinnable piece: \`vp create\` resolves it from \`create-vite@latest\`, and
-upstream offers no way to pin it (the version this run used is recorded above when the package
-manager printed it, which it only does on a fresh resolve).
+upstream offers no way to pin it. The row above carries the version this run resolved — read from
+the resolver's own dlx cache when \`vp create\` printed none — or says so when it could not be read
+at all, which is a fact about this record rather than a version to guess at.
 
 Everything is a project dependency: no global CLI is required to build, check or run this
 project. Read documentation for the versions above, not for \`latest\`.

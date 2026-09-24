@@ -22,4 +22,5 @@
 - **形状 ADR 的 0004 槽位按形态互斥**：`0004-ssr-shape.md`（SSR）、`0004-split-shape.md`（前后分离）、`0004-backend-workspace.md`、`0004-frontend-workspace.md` 各写一份，断言"恰好一份 0004，且是本形态的那份"。
 - **约束与陷阱按形态裁剪**：`backend/monorepo` 得到 Workspace + Server + Tests 三段（没有代理段）；`frontend/monorepo` 得到 Workspace + Development proxy (apps/website) + Tests（没有 Server 段、没有 `defaultPackage` 那条、没有 `.output` 陷阱）。`notes-workspace` 重指为 `when=layout:monorepo`，"根是应用"的那三条（`defaultPackage`、根程序即整个 workspace 的 TypeScript 程序、包删除后必须重指命令）拆到 `notes-workspace-root-server`。
 - **占位子包的两支各跑一次**：`backend-monorepo` 取 `GUIDE_PLACEHOLDER=yes`（断言子包自带骨架与配置并参与 workspace 构建），`frontend-monorepo` 取 `no`（断言 `packages/utils` 与空的 `packages/` 都被删除）。前后分离仍取 `yes`；它自己的 `no` 分支仍是文档里写了、harness 未跑的那一支，指南明说。
-- **未验证**：非 `vanilla-ts` 的 app 基座、前后分离 profile 的 `GUIDE_PLACEHOLDER=no` 分支、`pnpm` 以外的包管理器、真实的第三方后端（`frontend/monorepo` 的代理目标在 e2e 里是 stub）、生产反代与部署拓扑。
+- **未验证**：非 `vanilla-ts` 的 app 基座、`pnpm` 以外的包管理器、真实的第三方后端（`frontend/monorepo` 的代理目标在 e2e 里是 stub）、生产反代与部署拓扑。
+- **后续（ADR-0012 补全）**：本条记的 `frontend/monorepo` 取 `no`、`backend/monorepo` 取 `yes` 只是「两条分支各跑过一次」；现在每个 monorepo arrangement 的两支都有 profile（`*-placeholder-no` / `*-placeholder-yes`），因此上面那条「前后分离的 `GUIDE_PLACEHOLDER=no` 未验证」不再成立。

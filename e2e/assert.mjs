@@ -17,6 +17,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readAnswers } from "./lib/answers.mjs";
+import { audit as auditCoverage } from "./coverage.mjs";
 
 const args = { target: null, answers: null };
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -1097,6 +1098,17 @@ check("agent-notes.md records the known traps and is referenced from AGENTS.md",
   return `${notes.split("\n").length} lines`;
 });
 
+check("the shipped documents cover exactly the items the coverage table declares", () => {
+  // Both directions of the alignment, in one run: every declared row's text is present (an item
+  // the shape should carry but does not is an omission), and every bullet the project carries is
+  // claimed by a row (a bullet with no source item is fabrication). The third property — per-shape
+  // trimming — is what `when` does inside both: a row the profile does not take is absent here,
+  // and a bullet that leaked in from another shape has no row to claim it.
+  const result = auditCoverage((relative) => read(relative), answers);
+  assert(result.failures.length === 0, result.failures.join("; "));
+  return `${result.items} source items landed (${result.claims} rows), ${result.bullets} shipped bullets claimed`;
+});
+
 check("provenance.md records resolved versions, the skills commit, and the choices", () => {
   const provenance = read(join("docs", "provenance.md"));
   assert(provenance.includes(answers.GUIDE_VP_VERSION), `provenance does not mention vite-plus@${answers.GUIDE_VP_VERSION}`);
@@ -1107,10 +1119,63 @@ check("provenance.md records resolved versions, the skills commit, and the choic
   assert(provenance.includes(answers.GUIDE_PM), "provenance does not record the package manager");
   assert(provenance.includes(answers.GUIDE_MODE), "provenance does not record the mode");
   assert(provenance.includes(answers.GUIDE_LAYOUT), "provenance does not record the layout");
+  assert(provenance.includes(answers.GUIDE_TS_VERSION), "provenance does not record the pinned TypeScript line");
+  assert(
+    provenance.includes(`skills@${answers.GUIDE_SKILLS_VERSION}`),
+    "provenance does not record the pinned skills installer",
+  );
+  assert(/Skills installed\s+\|\s+[1-9]/.test(provenance), "provenance does not record how many skills were installed");
+  // The decision the user made at Phase 4.5, and — in the layout that has one — the placeholder
+  // answer: both are choices, not facts to infer from the produced tree.
+  assert(
+    new RegExp(`^\\|\\s*Skills setup run now\\s*\\|\\s*${answers.GUIDE_SETUP}\\b`, "m").test(provenance),
+    `provenance does not record the setup decision (${answers.GUIDE_SETUP})`,
+  );
+  if (isMono) {
+    assert(
+      new RegExp(`^\\|\\s*Placeholder package\\s*\\|\\s*${answers.GUIDE_PLACEHOLDER}\\b`, "m").test(provenance),
+      `provenance does not record the placeholder decision (${answers.GUIDE_PLACEHOLDER})`,
+    );
+  }
+  // What resolved, not what was asked for: the versions in the table are read back out of the
+  // target's own node_modules, so a record that kept only the requested range fails here.
+  const resolvedVp = resolvedVersion(".", "vite-plus");
+  assert(provenance.includes(resolvedVp), `provenance does not record the vite-plus that resolved (${resolvedVp})`);
+  if (isMono && compiledPackage) {
+    const resolvedTs = resolvedVersion(compiledPackage, "typescript");
+    assert(provenance.includes(resolvedTs), `provenance does not record the TypeScript that resolved (${resolvedTs})`);
+  } else if (!isMono) {
+    const resolvedTs = resolvedVersion(".", "typescript");
+    assert(provenance.includes(resolvedTs), `provenance does not record the TypeScript that resolved (${resolvedTs})`);
+  } else {
+    // A workspace whose only package is the root has no package that compiles with its own
+    // TypeScript: the record states that fact, and nothing in the workspace gets to contradict it
+    // by holding an installation the record says is not there.
+    assert(
+      /not installed in a package of this workspace/.test(provenance),
+      "the workspace has no compiled package, but the record does not state the TypeScript fact",
+    );
+    for (const base of ["apps/website", "packages/utils"]) {
+      assert(
+        !existsSync(join(target, base, "node_modules", "typescript")),
+        `${base}/node_modules/typescript exists although the record says no package carries one`,
+      );
+    }
+  }
+  // The one unpinnable piece: the row has to carry a version or say plainly that this run could not
+  // read one. A blank cell, or a pointer to a note the reader cannot see, is not a record.
+  const createVite = /^\|\s*create-vite\s*\|\s*([^|]+?)\s*\|/m.exec(provenance);
+  assert(createVite, "provenance has no create-vite row");
+  assert(
+    /^\d+\.\d+\.\d+/.test(createVite[1]) || /not printed by this run/.test(createVite[1]),
+    `the create-vite row records neither a version nor that it could not be read: ${createVite[1]}`,
+  );
   // A record that names a fact the project does not have is worse than no record: a project with a
   // server must record the pin, and only a project with a proxy may claim a proxy target.
   if (hasServer) {
     assert(provenance.includes(answers.GUIDE_NITRO_VERSION), "provenance does not record the pinned nitro version");
+    const resolvedNitro = resolvedVersion(".", "nitro");
+    assert(provenance.includes(resolvedNitro), `provenance does not record the nitro that resolved (${resolvedNitro})`);
     assert(!/Dev proxy target/.test(provenance), "the provenance record claims a proxy to someone else's backend");
     if (isSsr) {
       assert(/SSR/.test(provenance), "provenance does not record that this project's shape is SSR");
