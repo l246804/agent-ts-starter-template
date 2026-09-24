@@ -98,8 +98,9 @@
    - 我们额外要守的是 vp 那段**没有**说的三条：跨包必须用 `-r`（`--filter` 遇到缺 task 的包是 rc=1，见 #17）；根 task 名与根 script 名不可同名（#21）；根命令需要目标包，所以根服务端要设 `defaultPackage: "."`（#25）。
    - ✅ **已实测（不带 `CI=1`）**：`vp add -D <pkg>` 在**单项目**里可用（RC=0、写入 devDeps、lockfile 更新）；在**workspace 根**也可用且**不需要 `-w`**，并且在 `catalogMode: prefer` 下它把版本写进**根 catalog**、包内只留 `"<pkg>": "catalog:"`。此前观察到的 `ERR_PNPM_ADDING_TO_ROOT` 与 frozen-lockfile 摩擦都来自**直接调 `pnpm` / `CI=1`**，不是 vp 的行为。
    - ⚠️ 残余未验证：上述根级 `vp add` 是在**手工搭的最小 workspace** 上验证的；真实 `vite:monorepo` 脚手架只验证过其它路径（`vp run -r`、构建、catalog），未单独复测 `vp add`。
-36. 📌 **服务端不使用 `/api` 前缀**：handlers 放 `server/routes/`（放 `server/api/` 会自动加 `/api`）。生产由 nginx 反代 `api` 前缀并**去掉前缀**；dev 由**前端包**用 **`vite-proxy-from-env@1.1.0`** + `rewrite: ''` 复刻同一行为（已实测等价）。
+36. 📌 **服务端不使用 `/api` 前缀**（**有外部前端**的形态）：handlers 放 `server/routes/`（放 `server/api/` 会自动加 `/api`）。生产由 nginx 反代 `api` 前缀并**去掉前缀**；dev 由**前端包**用 **`vite-proxy-from-env@1.1.0`** + `rewrite: ''` 复刻同一行为（已实测等价）。
     **存在规则**：只要存在一个**不与服务端同源的前端**就需要代理，且配置只放在**前端包**里。
+    - ⚠️ **SSR 单仓是这条的例外**：那里没有外部前端，页面与 API 同源，因此既没有代理也不写 `.env`；API 放在 `server/routes/api/*`，URL `/api/…` 来自**文件路径**，不是 `server/api/` 的隐式前缀（实测 `server/routes/api/hello.ts` → `/api/hello`；未知 `/api/…` 会由 SSR 入口渲染成页面，见"已知边界"）。
 
     | 形态 | `.env` + 代理 | 代理目标 |
     |---|---|---|
@@ -142,7 +143,7 @@
 | 📌 长期规则（工具链 / 代码组织 / 配置文件） | `AGENTS.md` 的「项目约束」段 | 一行一条、祈使句 + 一句最小理由 |
 | 📌 形态相关规则（monorepo / 代理 / SSR） | 同上，**只在该形态出现时写入** | 按形态过滤，不全量倾倒 |
 | 🔧 初始化动作（自举、`vp fmt`、写 `.env` …） | `GUIDE.md` 的步骤，**不进客户项目** | 步骤 + verify |
-| 为什么 / 取舍 / 被拒的替代 | 目标项目 `docs/adr/0001..0003`（继承 ADR） | 一段话说清 why，与规则互相指认 |
+| 为什么 / 取舍 / 被拒的替代 | 目标项目 `docs/adr/0001..0003`（继承 ADR；SSR 形态另加 `0004-ssr-shape.md`，仅该形态） | 一段话说清 why，与规则互相指认 |
 | ⚠️ 已知边界与陷阱 | 目标项目 `docs/agent-notes.md`，由 AGENTS.md 指过去 | 事实清单（非规则），按形态过滤 |
 | 本次实际装了什么、做了什么 | 目标项目 `docs/provenance.md` | 版本 / commit / 步骤 / 选择 |
 | ⚠️ 待验证项、待办 | **只留本仓库**（内部工作状态） | 解决后转成规则或陷阱，不发货 |
@@ -154,6 +155,7 @@
 │                         ③ 我们的「项目约束」段（按形态裁剪） ④ 指针 → docs/agent-notes.md
 ├── docs/
 │   ├── adr/0001..0003 ← 继承 ADR：工具链 / 服务端形态（仅有服务端时）/ 代码局部化
+│   │   └── 0004-ssr-shape.md ← 仅 SSR 形态：为什么没有 index.html
 │   ├── agent-notes.md ← 陷阱与版本事实（按形态裁剪）
 │   └── provenance.md  ← 出生证明
 ├── server/            ← 骨架（形态相关）
@@ -170,17 +172,24 @@
 - ⚠️ monorepo 里不要再 `vp create` 生成 `apps/website`（脚手架已自带）：会报 `The --git/--no-git options are not available when adding a package to an existing monorepo`。
 - ⚠️ **仅当 setup 选用了 GitHub tracker**：目标项目里生成的 `docs/agents/issue-tracker.md` 来自 setup 技能的种子模板，其中的 `issue_dependencies_summary.blocked_by` **不是** `gh issue view --json` 的有效字段名（实测 gh 2.100.0 报 `Unknown JSON field`）。读阻塞边走 `gh api repos/<owner>/<repo>/issues/<n> --jq .issue_dependencies_summary` 或 `gh issue view <n> --json blockedBy`。**不要修补那个生成的文件**——技能重跑会用陈旧种子再生成一遍，修补会被静默丢弃；把这条写进 `docs/agent-notes.md`。（上游报告：mattpocock/skills#1118）
 
-- ⚠️ hydration 未在浏览器中验证；指南 verify 只断言"`/` 返回的 HTML 含服务端渲染标记"。
+- ⚠️ hydration 未在浏览器中验证（无浏览器）；SSR profile 的 verify 只断言 `/` 返回的 HTML 含**服务端渲染标记**（骨架页的 `<h1>SSR works</h1>`）、文档引用了客户端入口（`entry-client`），以及同源 `/api/hello` 返回 JSON。纯客户端壳恰好是 `200` + 空 `#root`，所以状态码不是证据。
 - ⚠️ 构建产物必须被 `.gitignore` 覆盖，否则 `vp check`/`vp fmt` 会去格式化产物（机制：它们的文件集**来自 gitignore 规则**）。采用 #33 的 `dist` 输出时脚手架已自带该行；若保留默认 `.output` 则必须自行追加。
 - ⚠️ 后端形态的基座**固定为 `vanilla-ts`**：框架模板的 `vite.config.ts` 自带 `plugins`（react-ts 是 `lazyPlugins(() => [react()])`），而这条路径本来就要把客户端删掉，留着只会多一层要拆的东西。指南在 profile-guard 处直接拒绝其他基座，不进入后面任何一步。
 - ⚠️ 设了 `output: { dir: "dist" }` 之后**不要再设 Vite 自己的 `build.outDir`**：Nitro 插件已经把 client 构建指到自己的 public 目录，显式 `build.outDir` 会被登记成又一份 public assets 源，于是 Nitro 把自己的产物再拷进自己（`dist/public/public/**`，且能通过 `/public/…` 访问），全程 exit 0。
 - ✅ 后端单仓形态已端到端验证（`e2e/run.sh --profile backend-single`）：无全局 CLI（harness 用一个只会失败的 `vp` 挡在 PATH 最前面）、插件有可访问路由、`/api` 前缀不存在、产物在 `dist/` 且构建后静态检查仍绿、Nitro 版本显式钉住、`tests/` 在路由扫描目录之外。决策与取舍见 ADR-0007。
+- ✅ 全栈 SSR 单仓形态已端到端验证（`e2e/run.sh --profile fullstack-single`）：没有 `index.html`、没有 `src/main.tsx`、两个 SSR 入口齐备、`nitro()` 在脚手架的 `lazyPlugins` 数组里被调用、客户端入口在 `environments.client.build.rollupOptions.input` 里声明、合并后的单一 tsconfig（两个 project-reference 配置已删）、`server/routes/api/hello.ts` 同源且无代理/无 `.env`、构建同时产出 `dist/public/assets/*.js` 与 `dist/server/_ssr/ssr.mjs`；verify 在构建产物与 dev server 两条路径上断言渲染标记与同源 `/api/hello`。harness 的两个 SSR 反向控制也跑通：种 `index.html` 必须让 verify 红在形状上，移除渲染标记必须让 verify 红在 render marker 上。决策与取舍见 ADR-0008。
 - ⚠️ 目标目录必须**完全为空**（`vp create` 拒绝非空目录，也不接受已有的 `.git`）。
-- ⚠️ SSR 两种形状都实测可行；**探针推荐 B（删 `index.html`）**，因为 A 缺 `<!--ssr-outlet-->` 会**静默**退化为纯客户端壳（SSR 入口照样被探测、照样打日志，`/` 返回纯客户端壳，无警告、exit 0）。Q19 待用户确认。
+- ✅ **SSR 形状定案：删 `index.html`**（官方 `examples/vite-ssr-react` 的布局）。两种形状都实测可行，但保留模板（靠 `<!--ssr-outlet-->` 注释接通）的那种缺注释时会**静默**退化为纯客户端壳：SSR 入口照样被探测、照样打日志（`Using \`src/entry-server.tsx\` as vite ssr entry.`）、`/` 返回客户端壳、**无警告、exit 0**（"探测 ≠ 渲染"，Round 5 的最坏失败形状）。删掉模板后插件安装内置 renderer，SSR 入口的 `Response` 原样透传（status/headers/body 都属于入口）——成因被消除，而不是被守卫。骨架页带固定渲染标记，verify 断言"标记存在"而非 200；harness 的反向控制种一个没有 outlet 的 `index.html`，退化后的构建**不再产出 `_ssr/`**，于是 verify 红在形状上（渲染标记是它后面那一层），另一个反向控制专门移除渲染标记来证明标记断言本身会红。取舍见 ADR-0008。
 - ⚠️ 形状不可混用：整文档入口 + 带 outlet 的模板 ⇒ 文档被忽略、body 被塞进模板（嵌套 `<html>`）。
-- ⚠️ SSR + react：SSR 入口那句 `export default {` 会常驻一条 `react(only-export-components)` 警告（exit 0），不要去追。
+- ⚠️ SSR 入口契约是 `export default { fetch(request) }`（返回 `Response`）：没有 `render()` 契约、不是 h3 app、不是 `server.ts`。默认导出没有可调用的 `fetch` 时，服务加载器抛 `[nitro] Vite service "ssr" entry does not export a \`fetch\` handler.`。探测路径是项目根 / `app/` / `src/` / 服务端目录下的 `entry-server.(ts|tsx|js|jsx|mts|mjs)`。
+- ⚠️ 模板没了以后，`environments.client.build.rollupOptions.input` 是唯一告诉 Vite 客户端入口的东西；不写它会退回被删掉的模板当客户端入口，构建在 Nitro 的 asset 步骤**大声失败**（实测 `TypeError: Cannot convert undefined or null to object`，exit 1）——这是可接受的那一半错误。`?assets=client` / `?assets=ssr` + `merge()` 负责把客户端 bundle 与 CSS 接进文档。`*?assets` 的类型声明随 `nitro/vite/types` 而来（`nitro/vite` 自己 import 它，所以程序里含 `vite.config.ts` 即可）。
+- ⚠️ **SSR 入口是 catch-all**：没有路由认领的路径（含未知 `/api/…`）由它渲染（`200` HTML），不是 404——内置 renderer 排在路由之后；存在的 `server/routes/api/*` 仍然先应答。
+- ⚠️ 合并 tsconfig（`extends: "nitro/tsconfig"`）在 react-ts 上可用：脚手架自己的 build script `tsc -b && vp build` 照常跑（实测 `tsc -b` 正常）；`tsBuildInfoFile` 设到 `node_modules/.tmp/`（脚手架自己的两个 tsconfig 就是这么做的），根目录就不会多出 `tsconfig.tsbuildinfo`；**同时删掉 `tsconfig.app.json` / `tsconfig.node.json`**（合并程序之外的第二份布局描述没人同步）；`vp check` 对 `src/` 与 `server/` 两半都能抓出故意类型错误（TS2322）。
+- ⚠️ 产物指纹：无模板（内置 renderer）→ `dist/server/_ssr/ssr.mjs` + `dist/server/_chunks/ssr-renderer.mjs`；用了模板（退化形态）→ `_chunks/renderer-template.mjs`，**没有** `_ssr/`（SSR 服务只落在 `node_modules/.nitro/vite/services/ssr/`），`/` 返回客户端壳。`_ssr/` 只在 SSR 构建里出现，是"这是不是 SSR 构建"的廉价判据——而且它比 smoke 更早抓住退化。
+- ⚠️ `react(only-export-components)` 对 SSR 入口的 `export default {` 常驻一条警告（`Found 0 errors and 1 warning`，exit 0）；改名导出并不能消掉它，不要为它静音整条规则。
+- ⚠️ 形态相关的 `plugins` 判断要**锚定顶层**：react-ts 脚手架的 `lint` 块自带 `plugins` 列表，未锚定的 `/plugins\s*:/` 会在正确文件上数出两个（`^ {2}plugins\s*:` 才是顶层键）。
 - ⚠️ Nitro 接线后 `vp test` 每次多 ~10s（`close timed out after 10000ms`，exit 0）。
-- ⚠️ `tsconfig.tsbuildinfo` 无需进 `.gitignore`（实测带着它 `vp check` 仍 exit 0）；只有 `.output` 必须忽略。
+- ⚠️ `tsconfig.tsbuildinfo` 无需进 `.gitignore`（实测带着它 `vp check` 仍 exit 0）；只有 `.output` 必须忽略。SSR profile 的合并 tsconfig 用 `tsBuildInfoFile: "./node_modules/.tmp/tsconfig.tsbuildinfo"` 把这份缓存放回 `node_modules`（脚手架自己的两个 tsconfig 就是这么做的），因此根目录根本不会出现它。
 - ⚠️ **`vp check` 绿 ≠ 构建绿**：`vp check` 的类型检查由 tsgolint（基于 TS7 Go 工具链）驱动，与你脚本里的 `tsc` / `vue-tsc` 是**两个引擎**。实测 Vue + TS7 下构建脚本全挂（`vue-tsc -b` 报 `ERR_PACKAGE_PATH_NOT_EXPORTED './lib/tsc'`）而 `vp check` 仍然 exit 0。→ verify 必须**同时**跑 `vp check` 与构建脚本。
 - ⚠️ `CI=1` 时裸 `pnpm install` 会 `ERR_PNPM_OUTDATED_LOCKFILE`（需 `--no-frozen-lockfile`）。
 - ⚠️ vp 脚手架的 `devEngines.packageManager` 会让 `npm pkg set …` 失败（`EBADDEVENGINES`）——改 package.json 必须直接编辑 JSON。

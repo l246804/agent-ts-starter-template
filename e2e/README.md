@@ -26,17 +26,31 @@ non-zero at the first failure and prints where its logs went.
   assertion time. In the backend profile it also checks what that mode's silent failures look
   like at the artefact level: the client is gone, `nitro()` is called in a `plugins` array
   rather than merely imported, the routes live outside `server/api/`, `tests/` is outside the
-  route scan, and the build output is `dist/` with no `.output/` beside it.
+  route scan, and the build output is `dist/` with no `.output/` beside it. In the SSR profile
+  the same is checked for the shape that cannot degrade quietly: no `index.html` and no SPA
+  entry, both SSR entries present, `nitro()` called inside the scaffold's `lazyPlugins` array,
+  the client entry declared for the client environment, `server/routes/api/` answering with no
+  proxy and no `.env`, and a build that emits the client bundle *and* `dist/server/_ssr/ssr.mjs`.
+  The SSR verify block then follows the document's own `<script src>` and requires it to answer
+  `200` with a javascript type, so "the server serves the client it renders" is asserted rather
+  than assumed.
 - **A check that cannot fail is not a check.** The negative controls make the preflight refuse
   a non-empty target and an old Node (a `node` shim on `PATH` reports `v24.13.0`), make the
-  profile guard refuse an unimplemented profile and a backend project on a framework base (both
-  without writing anything), make the route-scan assertion catch a test file planted next to the
-  routes — a rule a freshly initialized project has no way to violate, so it is made to fail on
-  purpose — and make the verify block go red on a planted type error, planted in `src/` for a
-  frontend profile and in `server/` for a backend one, i.e. where that profile's source lives.
+  profile guard refuse an unimplemented profile, a backend project on a framework base, and an
+  SSR project on a plain base (all without writing anything), make the route-scan assertion
+  catch a test file planted next to the routes — a rule a freshly initialized project has no way
+  to violate, so it is made to fail on purpose — and make the verify block go red on a planted
+  type error, planted in `src/` for a frontend profile and in `server/` for a backend one, i.e.
+  where that profile's source lives. In the SSR profile two more controls keep the two layers
+  honest: an `index.html` planted with no `<!--ssr-outlet-->` — the shape's silent degradation,
+  where Nitro still detects and logs the SSR entry, `/` still answers `200` with the plain client
+  shell, and the build quietly stops being an SSR build — must make verify fail naming the missing
+  SSR renderer (`client-only build`); and the render marker itself must be what the smoke reads,
+  so removing it from the rendered page makes verify fail on the marker, with the shape otherwise
+  intact.
 - **Profiles are explicit.** A profile is a pre-answered answers file plus assertions;
-  `frontend/single` and `backend/single` have both, and `assert.mjs` fails rather than pass
-  quietly for a profile it has no checks for.
+  `frontend/single`, `backend/single` and `fullstack/single` have both, and `assert.mjs` fails
+  rather than pass quietly for a profile it has no checks for.
 
 ## What it deliberately does not do
 
@@ -56,10 +70,10 @@ mechanical half; the guide is written for the half that needs judgement:
 - **Judgement inside the steps.** Every step is a deterministic script, but a step that fails
   is a report to read, not a script to tweak. The harness stops at exactly the same point the
   guide tells an agent to stop.
-- **Profiles that are not implemented yet.** `frontend/single` and `backend/single` have both a
-  profile file and assertions. `assert.mjs` fails rather than pass silently for any profile it
-  has no checks for, so a `fullstack` run — or a layout no profile covers — is a report, never
-  a green run.
+- **Profiles that are not implemented yet.** `frontend/single`, `backend/single` and
+  `fullstack/single` have both a profile file and assertions. `assert.mjs` fails rather than pass
+  silently for any profile it has no checks for, so a `fullstack` run in another layout — or a
+  layout no profile covers — is a report, never a green run.
 
 ## Environment notes
 
@@ -91,5 +105,7 @@ mechanical half; the guide is written for the half that needs judgement:
   name a proxy target (`__STUB_PORT__` in the profile file) it starts a deterministic stand-in
   (`e2e/stub-backend.mjs`) on another. That stub is what makes the proxy assertion meaningful: it
   serves `/hello` and 404s everything else, so a `200` on `/api/hello` through the dev server can
-  only mean the prefix was stripped. The backend profile needs no stub: its own project serves
-  the route, and the smoke test starts both the dev server and the built server on `GUIDE_DEV_PORT`.
+  only mean the prefix was stripped. The server profiles need no stub: their own project serves
+  the routes, and the smoke test starts both the dev server and the built server on
+  `GUIDE_DEV_PORT` — in the SSR profile it asserts the rendered marker and the same-origin API on
+  that one port, which is what "no proxy" means.

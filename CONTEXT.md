@@ -49,8 +49,12 @@ Which kind of project is being initialized: `frontend`, `fullstack`, or `backend
 _Avoid_: 类型, 模式, 项目种类
 
 **布局 (layout)**:
-Whether the target project is a single repo or a monorepo. Orthogonal to 形态 — a monorepo is a way of arranging a 形态, never a fourth one.
+Whether the target project is a single repo or a monorepo. Orthogonal to 形态 — a monorepo is a way of arranging a 形态, never a fourth one. In `fullstack` mode it is also the switch between the two shapes: `single` is SSR, `monorepo` is the split frontend/backend.
 _Avoid_: monorepo 形态, 结构
+
+**SSR 形状 (SSR shape)**:
+`fullstack` × `single` — one project that renders the page on the server and hydrates it in the browser, with its API on the same origin, so it has no dev proxy and no `index.html`. The other fullstack shape is the split frontend/backend, which is `fullstack` × `monorepo`.
+_Avoid_: SSR 形态, SSR 模式, 服务端渲染项目
 
 **骨架 (skeleton)**:
 The file structure of the initialized target project, with no business logic in it.

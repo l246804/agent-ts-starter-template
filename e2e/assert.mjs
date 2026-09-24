@@ -131,6 +131,9 @@ function readTsconfig(relative) {
 const manifest = readJson("package.json");
 const mode = answers.GUIDE_MODE;
 const layout = answers.GUIDE_LAYOUT;
+// Whether this shape has a server side: a backend project is one, and the SSR shape is a
+// frontend and a server in the same project.
+const hasServer = mode === "backend" || mode === "fullstack";
 
 // ---------------------------------------------------------------- guard rails
 check("package.json pins every version (no `latest`)", () => {
@@ -223,7 +226,9 @@ if (mode === "backend") {
     assert(existsSync(join(target, "package.json")), "the prune took package.json with it");
     return "src/, public/, index.html absent";
   });
+}
 
+if (hasServer) {
   check("nitro is pinned to the decided prerelease and installed", () => {
     const spec = manifest.devDependencies?.nitro;
     assert(spec, "nitro is not in devDependencies");
@@ -241,32 +246,6 @@ if (mode === "backend") {
     ).version;
     assert(resolved === answers.GUIDE_NITRO_VERSION, `node_modules/nitro resolved to ${resolved}`);
     return `nitro@${resolved} (v3 prerelease, pinned)`;
-  });
-
-  // The silent failure this catches: the scaffold writes no `plugins` key at all, so an import
-  // without a call exits 0 while every route 404s. The verify block catches it behaviourally;
-  // this catches it in the artefact, where the cause is visible.
-  check("the Nitro plugin is registered, not merely imported", () => {
-    const config = read("vite.config.ts");
-    assert(/from\s+["']nitro\/vite["']/.test(config), "vite.config.ts does not import from nitro/vite");
-    const keys = config.match(/plugins\s*:/g) ?? [];
-    assert(keys.length === 1, `expected exactly one plugins entry in vite.config.ts, found ${keys.length}`);
-    assert(/plugins:\s*\[nitro\(\)\]/.test(config), "the plugins array does not call nitro() — the server would be inert");
-    return "plugins: [nitro()]";
-  });
-
-  check("the server sits at the project root and its routes carry no /api prefix", () => {
-    assert(existsSync(join(target, "server", "routes", "hello.ts")), "server/routes/hello.ts is missing");
-    assert(!existsSync(join(target, "server", "api")), "server/api/ exists — those routes are /api-prefixed");
-    const nitro = read("nitro.config.ts");
-    assert(/serverDir:\s*["']\.\/server["']/.test(nitro), "nitro.config.ts does not set serverDir: './server'");
-    assert(/output:\s*\{\s*dir:\s*["']dist["']/.test(nitro), "nitro.config.ts does not send the output to dist");
-    const tsconfig = readTsconfig("tsconfig.json");
-    assert(tsconfig.extends === "nitro/tsconfig", `tsconfig.json extends ${JSON.stringify(tsconfig.extends)}`);
-    for (const included of ["server", "tests"]) {
-      assert((tsconfig.include ?? []).includes(included), `tsconfig.json does not include ${included}`);
-    }
-    return "server/routes/hello.ts, serverDir ./server, output dist, one tsconfig program";
   });
 
   check("tests/ is generated with its placeholder and stays out of the route scan", () => {
@@ -295,6 +274,118 @@ if (mode === "backend") {
     assert(existsSync(join(target, "dist", "nitro.json")), "dist/nitro.json is missing");
     assert(!existsSync(join(target, ".output")), ".output/ exists — output.dir did not take effect");
     return "dist/nitro.json, no .output/";
+  });
+}
+
+if (mode === "backend") {
+  // The silent failure this catches: the scaffold writes no `plugins` key at all, so an import
+  // without a call exits 0 while every route 404s. The verify block catches it behaviourally;
+  // this catches it in the artefact, where the cause is visible.
+  check("the Nitro plugin is registered, not merely imported", () => {
+    const config = read("vite.config.ts");
+    assert(/from\s+["']nitro\/vite["']/.test(config), "vite.config.ts does not import from nitro/vite");
+    const keys = config.match(/^ {2}plugins\s*:/gm) ?? [];
+    assert(keys.length === 1, `expected exactly one top-level plugins entry in vite.config.ts, found ${keys.length}`);
+    assert(/^ {2}plugins:\s*\[nitro\(\)\],$/m.test(config), "the plugins array does not call nitro() — the server would be inert");
+    return "plugins: [nitro()]";
+  });
+
+  check("the server sits at the project root and its routes carry no /api prefix", () => {
+    assert(existsSync(join(target, "server", "routes", "hello.ts")), "server/routes/hello.ts is missing");
+    assert(!existsSync(join(target, "server", "api")), "server/api/ exists — those routes are /api-prefixed");
+    const nitro = read("nitro.config.ts");
+    assert(/serverDir:\s*["']\.\/server["']/.test(nitro), "nitro.config.ts does not set serverDir: './server'");
+    assert(/output:\s*\{\s*dir:\s*["']dist["']/.test(nitro), "nitro.config.ts does not send the output to dist");
+    const tsconfig = readTsconfig("tsconfig.json");
+    assert(tsconfig.extends === "nitro/tsconfig", `tsconfig.json extends ${JSON.stringify(tsconfig.extends)}`);
+    for (const included of ["server", "tests"]) {
+      assert((tsconfig.include ?? []).includes(included), `tsconfig.json does not include ${included}`);
+    }
+    return "server/routes/hello.ts, serverDir ./server, output dist, one tsconfig program";
+  });
+}
+
+if (mode === "fullstack") {
+  // The silent degradation of the SSR shape, and why its absence is the assertion: an
+  // `index.html` is used as the renderer template, and if it has no `<!--ssr-outlet-->` comment
+  // Nitro still detects the SSR entry, still logs it, and still serves the plain client shell
+  // with exit 0. The shape deletes the template instead of relying on a comment being there, so
+  // a file at this path means the project went back to a shape whose failure is silent.
+  check("the SSR shape owns the document, so there is no client shell to fall back to", () => {
+    assert(
+      !existsSync(join(target, "index.html")),
+      "index.html exists — a renderer template without `<!--ssr-outlet-->` silently degrades SSR to a client-only shell",
+    );
+    assert(!existsSync(join(target, "src", "main.tsx")), "src/main.tsx exists — the SPA entry is replaced by the SSR entries");
+    for (const file of ["src/entry-server.tsx", "src/entry-client.tsx"]) {
+      assert(existsSync(join(target, file)), `${file} is missing`);
+    }
+    const entry = read(join("src", "entry-server.tsx"));
+    assert(/export default \{/.test(entry), "src/entry-server.tsx does not default-export an object");
+    assert(/fetch\(/.test(entry), "the default export has no fetch handler — the service loader would throw");
+    return "no index.html, no src/main.tsx, entry-server + entry-client present";
+  });
+
+  // react-ts's scaffold config wraps its plugins in `lazyPlugins(() => [react()])`, so the
+  // backend wiring — create a top-level `plugins` key — is the wrong edit here: a second
+  // `plugins` key is a duplicate object key, and Nitro gets silently dropped. The count is
+  // anchored at the top level because the scaffold's own `lint` block carries a `plugins` list.
+  check("the Nitro plugin is called inside the scaffold's lazyPlugins array", () => {
+    const config = read("vite.config.ts");
+    assert(/from\s+["']nitro\/vite["']/.test(config), "vite.config.ts does not import from nitro/vite");
+    const keys = config.match(/^ {2}plugins\s*:/gm) ?? [];
+    assert(keys.length === 1, `expected exactly one top-level plugins entry in vite.config.ts, found ${keys.length}`);
+    assert(
+      /^ {2}plugins: lazyPlugins\(\(\) => \[nitro\(\), react\(\)\]\),$/m.test(config),
+      "nitro() is not called inside the scaffold's lazyPlugins array — the server would be inert, or one plugin silently dropped",
+    );
+    return "plugins: lazyPlugins(() => [nitro(), react()])";
+  });
+
+  // Without this input, the client environment falls back to the renderer template — the file this
+  // shape deleted — and the build fails in Nitro's asset step instead of shipping a document whose
+  // client entry does not exist.
+  check("the client entry is declared for the client environment", () => {
+    const config = read("vite.config.ts");
+    assert(/environments\s*:/.test(config), "vite.config.ts has no environments block");
+    assert(
+      config.includes('input: "./src/entry-client.tsx"'),
+      "the client environment does not build from ./src/entry-client.tsx",
+    );
+    return "./src/entry-client.tsx";
+  });
+
+  check("the build emits the client bundle and the SSR renderer", () => {
+    const assets = join(target, "dist", "public", "assets");
+    const bundles = existsSync(assets) ? readdirSync(assets).filter((name) => name.endsWith(".js")) : [];
+    assert(bundles.length > 0, "no client bundle under dist/public/assets");
+    assert(existsSync(join(target, "dist", "server", "index.mjs")), "dist/server/index.mjs is missing");
+    // `_ssr/` and the renderer chunk next to it exist only in an SSR build: they are the cheap
+    // way to tell the SSR shape from a plain client build that also happens to have a server.
+    assert(
+      existsSync(join(target, "dist", "server", "_ssr", "ssr.mjs")),
+      "dist/server/_ssr/ssr.mjs is missing — this build has no SSR renderer",
+    );
+    return `${bundles.length} client bundle(s) + dist/server/_ssr/ssr.mjs`;
+  });
+
+  check("the API is same-origin, so the profile carries no dev proxy", () => {
+    assert(existsSync(join(target, "server", "routes", "api", "hello.ts")), "server/routes/api/hello.ts is missing");
+    assert(!existsSync(join(target, "server", "api")), "server/api/ exists — that is the directory that adds /api implicitly");
+    const config = read("vite.config.ts");
+    assert(!config.includes("proxyTransformer"), "vite.config.ts wires a dev proxy in a same-origin project");
+    assert(!manifest.devDependencies?.["vite-proxy-from-env"], "vite-proxy-from-env is installed in a same-origin project");
+    assert(!existsSync(join(target, ".env")), "the SSR shape has no DEV_PROXY to point anywhere, so it writes no .env");
+    const tsconfig = readTsconfig("tsconfig.json");
+    assert(tsconfig.extends === "nitro/tsconfig", `tsconfig.json extends ${JSON.stringify(tsconfig.extends)}`);
+    for (const included of ["src", "server", "tests"]) {
+      assert((tsconfig.include ?? []).includes(included), `tsconfig.json does not include ${included}`);
+    }
+    // The scaffold's project-reference configs are replaced by the one merged program; leaving
+    // them behind would keep a second, contradictory description of the project's TypeScript.
+    const splits = readdirSync(target).filter((name) => /^tsconfig\..*\.json$/.test(name));
+    assert(splits.length === 0, `split tsconfig files survived the merge: ${splits.join(", ")}`);
+    return "server/routes/api/hello.ts, no proxy, one program over src/ and server/";
   });
 }
 
@@ -368,13 +459,22 @@ check("AGENTS.md keeps the tool-owned block and gains the project constraints", 
   assert(section.includes("vp env doctor"), "the constraints section must correct the global-only `vp env doctor` advice");
   assert(section.includes("agent-notes") || section.includes("docs/"), "the constraints section does not point at docs/agent-notes.md");
   // The mode-specific rules are the mode's own: a frontend project has no server to describe and
-  // a backend project no dev proxy, so a section for the other mode would be a wrong instruction.
-  if (mode === "backend") {
-    assert(section.includes("### Server"), "the backend constraints section does not describe the server");
-    assert(!section.includes("### Development proxy"), "a backend project has no dev proxy to describe");
-  } else {
-    assert(section.includes("### Development proxy"), "the frontend constraints section does not describe the dev proxy");
-    assert(!section.includes("### Server"), "a frontend project has no server to describe");
+  // a project with a server no dev proxy, so a section for another mode would be a wrong instruction.
+  assert(
+    section.includes("### Server") === hasServer,
+    hasServer ? "the constraints section does not describe the server" : "a frontend project has no server to describe",
+  );
+  assert(
+    section.includes("### Development proxy") === (mode === "frontend"),
+    mode === "frontend"
+      ? "the frontend constraints section does not describe the dev proxy"
+      : "only a frontend project has a dev proxy to describe",
+  );
+  if (mode === "fullstack") {
+    assert(
+      section.includes("### Rendering (SSR)"),
+      "the fullstack constraints section does not describe the SSR shape",
+    );
   }
   return `${agents.length} bytes`;
 });
@@ -384,9 +484,15 @@ check("inherited ADRs land in docs/adr with the profile's set", () => {
   const files = existsSync(dir) ? readdirSync(dir).sort() : [];
   assert(files.some((f) => /^0001-.*\.md$/.test(f)), `no 0001-* ADR (found ${files.join(", ") || "nothing"})`);
   assert(files.some((f) => /^0002-.*\.md$/.test(f)), `no 0002-* ADR (found ${files.join(", ") || "nothing"})`);
-  const hasServer = ["backend", "fullstack"].includes(mode);
   const hasServerAdr = files.some((f) => /^0003-.*\.md$/.test(f));
   assert(hasServerAdr === hasServer, hasServer ? "a server mode must write the server-mode ADR" : "a pure frontend must not write the server ADR");
+  // The SSR shape's own ADR is the shape's, and only the shape's: a backend project would be told
+  // about files it deletes, which is the mode-filtering rule the whole document set follows.
+  const hasSsrAdr = files.some((f) => /^0004-.*\.md$/.test(f));
+  assert(
+    hasSsrAdr === (mode === "fullstack"),
+    mode === "fullstack" ? "the SSR shape must write its own ADR" : "only the SSR shape has no index.html to explain",
+  );
   // How much structure an ADR carries is the author's call (the repo's ADR format treats the
   // extra sections as optional), so this only asserts they are real documents.
   for (const file of files) {
@@ -406,6 +512,12 @@ check("agent-notes.md records the known traps and is referenced from AGENTS.md",
     assert(/Nitro/i.test(notes), "agent-notes.md does not mention Nitro");
     assert(notes.includes(".output"), "agent-notes.md does not warn about Nitro's default .output/ directory");
     assert(!notes.includes("DEV_PROXY"), "a backend project has no dev proxy to record");
+  } else if (mode === "fullstack") {
+    assert(/Nitro/i.test(notes), "agent-notes.md does not mention Nitro");
+    assert(notes.includes("ssr-outlet"), "agent-notes.md does not record the `<!--ssr-outlet-->` silent degradation");
+    assert(notes.includes("entry-server"), "agent-notes.md does not record the SSR entry contract");
+    assert(/hydrat/i.test(notes), "agent-notes.md does not say what is not verified about hydration");
+    assert(!notes.includes("DEV_PROXY"), "the SSR shape has no dev proxy to record");
   } else {
     assert(notes.includes("DEV_PROXY"), "agent-notes.md does not record the dev-proxy traps");
   }
@@ -422,11 +534,14 @@ check("provenance.md records resolved versions, the skills commit, and the choic
   assert(provenance.includes(answers.GUIDE_PM), "provenance does not record the package manager");
   assert(provenance.includes(answers.GUIDE_MODE), "provenance does not record the mode");
   assert(provenance.includes(answers.GUIDE_LAYOUT), "provenance does not record the layout");
-  // A record that names a fact the project does not have is worse than no record: a backend run
-  // must not claim a dev proxy target, and a frontend run must not claim a server foundation.
-  if (mode === "backend") {
+  // A record that names a fact the project does not have is worse than no record: a project with a
+  // server must record the pin, and no project without a proxy may claim a proxy target.
+  if (hasServer) {
     assert(provenance.includes(answers.GUIDE_NITRO_VERSION), "provenance does not record the pinned nitro version");
     assert(!/Dev proxy target/.test(provenance), "the provenance record claims a dev proxy in a project that has none");
+    if (mode === "fullstack") {
+      assert(/SSR/.test(provenance), "provenance does not record that this project's shape is SSR");
+    }
   } else {
     assert(provenance.includes("Dev proxy target"), "provenance does not record the dev proxy target");
     assert(!/nitro@/.test(provenance), "the provenance record claims a server in a project that has none");
@@ -472,7 +587,7 @@ check("the upstream-declared promoted skills are installed and the lockfile agre
 });
 
 check("build output exists and is not committed to the source tree", () => {
-  const expected = mode === "backend" ? join("dist", "server", "index.mjs") : join("dist", "index.html");
+  const expected = mode === "frontend" ? join("dist", "index.html") : join("dist", "server", "index.mjs");
   assert(existsSync(join(target, expected)), `${expected} is missing — the verify build did not produce output`);
   return expected;
 });
@@ -480,7 +595,7 @@ check("build output exists and is not committed to the source tree", () => {
 // -------------------------------------------------------------- reported set
 await Promise.all(pending);
 
-const covered = { frontend: ["single"], fullstack: [], backend: ["single"] };
+const covered = { frontend: ["single"], fullstack: ["single"], backend: ["single"] };
 if (!covered[mode]?.includes(layout)) {
   failures.push(`no assertions are implemented for mode=${mode} layout=${layout}; add them before trusting a green run`);
 }

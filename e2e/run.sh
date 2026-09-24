@@ -15,8 +15,10 @@
 #      not make (file tree, document placement, skills lockfile agreement)
 #   6. runs the negative controls: the preflight must refuse a non-empty target and an old
 #      Node, the profile guard must refuse an unimplemented answer without writing anything,
-#      the route-scan assertion must catch a test file planted next to the routes, and the
-#      verify block must go red on a planted type error.
+#      the route-scan assertion must catch a test file planted next to the routes, the
+#      verify block must go red on a planted type error, and — in the SSR profile — a planted
+#      index.html must stop being a silent client-shell degradation and a removed render
+#      marker must be what the smoke notices.
 #
 # What it is NOT: a replacement for an agent reading GUIDE.md. The guide's decision
 # points are pre-answered here, and the parts that need judgement are listed in
@@ -211,20 +213,26 @@ FAKE
   echo "  refused, and wrote nothing"
 
   say "negative control: the profile guard refuses an answer no profile implements"
-  # The guard is the guide's "stop before writing" edge, so both halves of it are exercised: a
-  # profile that does not exist, and a base template a backend project cannot prune. Each must
-  # fail without writing anything into the (empty) target it is pointed at.
-  if (cd "$old_target" && GUIDE_MODE=fullstack GUIDE_LAYOUT=single bash "$PLAN/$guard") > "$LOGS/neg-guard-profile.log" 2>&1; then
+  # The guard is the guide's "stop before writing" edge, so each of its refusals is exercised:
+  # a combination no profile implements, a base template a backend project cannot prune, and a
+  # framework the SSR shape cannot render and hydrate. Each must fail without writing anything
+  # into the (empty) target it is pointed at.
+  if (cd "$old_target" && GUIDE_MODE=fullstack GUIDE_LAYOUT=monorepo bash "$PLAN/$guard") > "$LOGS/neg-guard-profile.log" 2>&1; then
     cat "$LOGS/neg-guard-profile.log"
-    die "the profile guard accepted mode=fullstack"
+    die "the profile guard accepted mode=fullstack layout=monorepo"
   fi
   if (cd "$old_target" && GUIDE_MODE=backend GUIDE_LAYOUT=single GUIDE_FRAMEWORK=react-ts bash "$PLAN/$guard") > "$LOGS/neg-guard-framework.log" 2>&1; then
     cat "$LOGS/neg-guard-framework.log"
     die "the profile guard accepted a backend project on the react-ts base"
   fi
+  if (cd "$old_target" && GUIDE_MODE=fullstack GUIDE_LAYOUT=single GUIDE_FRAMEWORK=vanilla-ts bash "$PLAN/$guard") > "$LOGS/neg-guard-ssr-base.log" 2>&1; then
+    cat "$LOGS/neg-guard-ssr-base.log"
+    die "the profile guard accepted a fullstack SSR project on the vanilla-ts base"
+  fi
   [ -z "$(ls -A "$old_target")" ] || die "the profile guard wrote into the target it refused"
   grep -q 'vanilla-ts' "$LOGS/neg-guard-framework.log" || die "the framework refusal does not name the base it wants"
-  echo "  refused fullstack, and refused backend + react-ts, naming vanilla-ts"
+  grep -q 'react-ts' "$LOGS/neg-guard-ssr-base.log" || die "the SSR base refusal does not name the base it wants"
+  echo "  refused fullstack/monorepo, backend + react-ts (naming vanilla-ts), fullstack SSR + vanilla-ts (naming react-ts)"
 
   say "negative control: the verify block goes red on a planted type error"
   # The plant goes where this profile's source lives: a frontend has src/, a backend has server/
@@ -241,6 +249,63 @@ FAKE
   fi
   rm -f "$planted"
   echo "  verify failed as it must (see $LOGS/neg-verify-red.log)"
+
+  # The SSR shape's silent degradation, made to happen on purpose. An index.html is accepted as
+  # the renderer template, and with no `<!--ssr-outlet-->` comment inside it Nitro still detects
+  # the SSR entry, still logs it, and still exits 0 — while the build quietly stops being an SSR
+  # build (no `dist/server/_ssr/` bundle, only an inlined renderer template). The verify block
+  # must notice that, and notice it as the shape: the missing SSR renderer is what it names. The
+  # marker-removal control below is the one that proves the smoke's own layer.
+  # The SSR controls belong to the SSR profile — decided by the profile's answers, never by what
+  # the target happens to contain: a fullstack run whose shape is missing is a failure to report,
+  # not a control to skip silently (the same rule the harness applies to every accommodation).
+  if [ "${GUIDE_MODE:-}" = "fullstack" ]; then
+    [ -f "$TARGET/src/entry-server.tsx" ] \
+      || die "the fullstack profile produced no src/entry-server.tsx, so its negative controls cannot run"
+    say "negative control: a planted index.html is not a silent client-shell degradation"
+    cat > "$TARGET/index.html" <<'HTML'
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>client shell</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/entry-client.tsx"></script>
+  </body>
+</html>
+HTML
+    if (cd "$TARGET" && bash "$PLAN/$verify") > "$LOGS/neg-ssr-shell.log" 2>&1; then
+      rm -f "$TARGET/index.html"
+      die "verify passed with an index.html renderer template — the client-shell degradation is invisible"
+    fi
+    rm -f "$TARGET/index.html"
+    grep -q 'client-only build' "$LOGS/neg-ssr-shell.log" || {
+      tail -5 "$LOGS/neg-ssr-shell.log"
+      die "verify failed on the planted client shell, but not on the missing SSR renderer (see $LOGS/neg-ssr-shell.log)"
+    }
+    echo "  refused, naming the missing SSR renderer (see $LOGS/neg-ssr-shell.log)"
+
+    # And the render marker itself, so the smoke's assertion is known to read the rendered body
+    # rather than merely to run: with the shape intact, only the marker text changes, the build is
+    # a real SSR build, and the missing marker is the only thing that can go red.
+    say "negative control: the render marker is what the smoke reads"
+    cp "$TARGET/src/App.tsx" "$RUN_DIR/negative/ssr-App.tsx.bak"
+    node -e 'const f = process.argv[1]; const fs = require("node:fs"); fs.writeFileSync(f, fs.readFileSync(f, "utf8").replace("<h1>SSR works</h1>", "<h1>the marker was removed</h1>"))' "$TARGET/src/App.tsx"
+    grep -q 'the marker was removed' "$TARGET/src/App.tsx" || die "the harness could not plant the marker change"
+    if (cd "$TARGET" && bash "$PLAN/$verify") > "$LOGS/neg-ssr-marker.log" 2>&1; then
+      cp "$RUN_DIR/negative/ssr-App.tsx.bak" "$TARGET/src/App.tsx"
+      die "verify passed with the render marker removed — the smoke does not read what it claims to"
+    fi
+    cp "$RUN_DIR/negative/ssr-App.tsx.bak" "$TARGET/src/App.tsx"
+    grep -q '<h1>SSR works</h1>' "$TARGET/src/App.tsx" || die "the harness did not restore the marker"
+    if ! grep -q 'render marker' "$LOGS/neg-ssr-marker.log"; then
+      tail -5 "$LOGS/neg-ssr-marker.log"
+      die "verify failed with the marker removed, but not on the render marker (see $LOGS/neg-ssr-marker.log)"
+    fi
+    echo "  verify failed as it must, naming the render marker (see $LOGS/neg-ssr-marker.log)"
+  fi
 }
 
 # ----------------------------------------------------------------------- main
