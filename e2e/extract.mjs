@@ -14,13 +14,15 @@
  *
  * Extra attributes:
  *   when=mode:frontend|backend   include the step only when GUIDE_MODE matches
- *   when=mode:frontend&pm:pnpm   `&` joins clauses, `|` separates alternatives
  *
  * Anything else in the info string (a language tag, prose) is ignored, so blocks
  * without a `guide:` token document the guide without becoming steps.
  *
  * Output (--out <dir>):
- *   plan.json          ordered manifest (single source for the runner)
+ *   plan.json          ordered manifest (the readable record)
+ *   plan.tsv           the same order in tab-separated columns, which is what the runner reads:
+ *                      number, kind, id, payload (script for exec/verify, source for file),
+ *                      destination path (file steps only)
  *   steps/NNNN-<id>.sh exec/verify bodies, byte-identical to GUIDE.md
  *   files/<path>       file bodies, byte-identical to GUIDE.md
  *
@@ -38,6 +40,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { readAnswers } from "./lib/answers.mjs";
 
 const KINDS = new Set(["exec", "file", "verify"]);
 
@@ -66,24 +69,11 @@ function parseArgs(argv) {
 /** Minimal .env reader: KEY=VALUE lines, # comments, optional surrounding quotes. */
 function loadAnswers(path) {
   if (!path) return {};
-  if (!existsSync(path)) fail(`answers file not found: ${path}`);
-  const answers = {};
-  for (const raw of readFileSync(path, "utf8").split("\n")) {
-    const line = raw.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq < 0) fail(`answers line is not KEY=VALUE: ${raw}`);
-    const key = line.slice(0, eq).trim();
-    let value = line.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    answers[key] = value;
+  try {
+    return readAnswers(path);
+  } catch (error) {
+    fail(error.message);
   }
-  return answers;
 }
 
 /**
@@ -139,17 +129,15 @@ function parseInfo(info) {
   return { kind, attrs };
 }
 
-/** when=mode:frontend|backend&pm:pnpm — no parentheses, no negation. */
+/** when=mode:frontend|backend — one answer, an alternative per value. */
 function whenMatches(expr, answers) {
-  return expr.split("&").every((clause) => {
-    const colon = clause.indexOf(":");
-    if (colon < 0) fail(`bad when clause (expected key:value): ${clause}`);
-    const key = `GUIDE_${clause.slice(0, colon).toUpperCase()}`;
-    const alternatives = clause.slice(colon + 1).split("|");
-    const actual = answers[key];
-    if (actual === undefined) fail(`when clause references unanswered ${key}`);
-    return alternatives.includes(actual);
-  });
+  const colon = expr.indexOf(":");
+  if (colon < 0) fail(`bad when clause (expected key:value): ${expr}`);
+  const key = `GUIDE_${expr.slice(0, colon).toUpperCase()}`;
+  const alternatives = expr.slice(colon + 1).split("|");
+  const actual = answers[key];
+  if (actual === undefined) fail(`when clause references unanswered ${key}`);
+  return alternatives.includes(actual);
 }
 
 function requiredAnswers(body) {
@@ -305,6 +293,12 @@ function main() {
       null,
       2,
     ) + "\n",
+  );
+  writeFileSync(
+    join(out, "plan.tsv"),
+    manifest
+      .map((entry) => [entry.n, entry.kind, entry.id, entry.script ?? entry.file, entry.path ?? ""].join("\t"))
+      .join("\n") + "\n",
   );
   console.log(`extract: ${manifest.length} steps -> ${relative(process.cwd(), out)}`);
 }

@@ -4,33 +4,32 @@ The guide's only seam is a full execution of the guide: an empty directory goes 
 verifiable project comes out. This directory is that execution, made repeatable.
 
 ```bash
-bash e2e/run.sh                          # the frontend/single profile
-bash e2e/run.sh --profile <name>         # another profile from e2e/profiles/
-bash e2e/run.sh --workdir /somewhere     # where the run directory is created
+bash e2e/run.sh --help
 ```
 
-It exits non-zero on the first failure and prints where the run's logs are.
+That prints the flags and the ordered list of what the harness does — the header of `run.sh`
+is the one place that list lives, so this file does not keep a copy of it. A run exits
+non-zero at the first failure and prints where its logs went.
 
-## What it does
+## What the harness guarantees
 
-1. **Loads the pre-answered decision points** from `e2e/profiles/<name>.env` — the same
-   answers a user would give if the guide were run attended.
-2. **Extracts the plan from `GUIDE.md`** with `e2e/extract.mjs`. A fenced block marked
-   `guide:exec` is a step to run verbatim; `guide:file` is a document to write verbatim;
-   `guide:verify` is the assertion set. There is no second copy of any guide step in this
-   directory, so the document and the test cannot drift apart.
-3. **Runs every step in document order** from an empty target directory, stopping at the
-   first failure — the guide's own rule is "stop and report", never "repair until green".
-4. **Runs `e2e/assert.mjs`** for what the guide does not assert about itself: the file tree,
-   where the documents landed, whether the skills lockfile really matches what upstream
-   declares, and the ignore-rule semantics (checked with `git check-ignore` in a throwaway
-   repository, so the target does not need to be one).
-5. **Runs the negative controls** — a check that cannot fail is not a check:
-   - preflight must refuse a **non-empty** target and write nothing;
-   - preflight must refuse **Node < 24.14** (a `node` shim on `PATH` reports the old version)
-     and write nothing;
-   - the extracted **verify block must go red** when a type error is planted in the project —
-     otherwise a green verification proves nothing.
+- **The plan comes from `GUIDE.md`, not from here.** `e2e/extract.mjs` owns the marker
+  grammar (`guide:exec` steps, `guide:file` documents, the single `guide:verify` assertion
+  set); every step the harness runs is the guide's own text, byte for byte, so a step cannot
+  exist in the test and not in the document.
+- **The verify block is the assertion set.** It is extracted and run as-is; the harness does
+  not keep a second copy of those checks.
+- **Outcomes are checked from outside**: `e2e/assert.mjs` inspects the produced project — the
+  file tree, where the documents landed, the ignore rules (probed with `git check-ignore` in a
+  throwaway repository so the target need not be one), the alias mechanism, the dev-proxy
+  wiring, and the installed skill set compared against the upstream manifest re-resolved at
+  assertion time.
+- **A check that cannot fail is not a check.** The negative controls make the preflight refuse
+  a non-empty target and an old Node (a `node` shim on `PATH` reports `v24.13.0`) without
+  writing anything, and make the verify block go red on a planted type error.
+- **Profiles are explicit.** A profile is a pre-answered answers file plus assertions; only
+  `frontend/single` has both today, and `assert.mjs` fails rather than pass quietly for a
+  profile it has no checks for.
 
 ## What it deliberately does not do
 

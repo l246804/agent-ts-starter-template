@@ -18,8 +18,12 @@ Two properties are deliberate, because this project exists to prevent them:
 
 | Mode | Layout | Status in this revision |
 | --- | --- | --- |
-| `frontend` | `single` | **Implemented and E2E-verified** (pnpm; `react-ts` exercised end to end, other create-vite TypeScript templates share the same steps) |
+| `frontend` | `single` | **Implemented and E2E-verified** (pnpm + `react-ts`); the same steps cover the other create-vite TypeScript templates |
 | `backend`, `fullstack` | any | Not implemented yet — the guide stops at the profile guard and tells you so |
+
+Two branches are written from the research but **not exercised by this revision's harness**:
+`GUIDE_TNB=yes` (the TypeScript 6 API bridge, needed by `vue-ts`/`svelte-ts`) and every package
+manager other than `pnpm`. Treat a green run there as unproven until it has been run once.
 
 The phase skeleton below (preflight → decisions → initialize → skills → documents → verify →
 handoff) is the structure every profile fills in; the profile guard keeps unimplemented
@@ -43,14 +47,14 @@ directory, so the document and the test can never drift into two truths.
 
 ## Answers — decision points, asked once and pre-answerable
 
-The guide stops at four decision points: shape/layout/framework/package manager, versions,
+The guide stops at four decision points: mode/layout/framework/package manager, versions,
 the dev-proxy target, and whether to run the skills setup now. Ask them, then record the
 answers as environment variables; every step below fails loudly if an answer it needs is
 missing. That is also what makes an unattended run possible.
 
 | Variable | Meaning | Accepted values |
 | --- | --- | --- |
-| `GUIDE_MODE` | project shape | `frontend` (this revision) |
+| `GUIDE_MODE` | project mode (形态) | `frontend` (this revision) |
 | `GUIDE_LAYOUT` | single repo or monorepo | `single` (this revision) |
 | `GUIDE_FRAMEWORK` | create-vite template id | `react-ts`, `vue-ts`, `svelte-ts`, `solid-ts`, `preact-ts`, `lit-ts`, `vanilla-ts`, … |
 | `GUIDE_PM` | package manager | `pnpm` (verified), `npm`, `yarn`, `bun` |
@@ -60,7 +64,7 @@ missing. That is also what makes an unattended run possible.
 | `GUIDE_TNB_VERSION` | pinned bridge package | `6.0.3-bridge.17.tsgo.7.0.2` |
 | `GUIDE_SKILLS_VERSION` | pinned `skills` CLI | `1.7.0` |
 | `GUIDE_DEV_PROXY` | backend the dev server proxies `/api/*` to (frontend modes) | e.g. `http://127.0.0.1:3000` |
-| `GUIDE_PROXY_SMOKE_PATH` | route the proxy smoke test calls (frontend modes) | e.g. `/hello` |
+| `GUIDE_PROXY_SMOKE_PATH` | route the proxy smoke test calls — must exist on that backend | e.g. `/hello` |
 | `GUIDE_DEV_PORT` | port the smoke test uses for the dev server | default `5173` |
 | `GUIDE_SETUP` | run the skills setup now? | `no` in unattended runs (see Phase 4.5) |
 
@@ -135,14 +139,14 @@ else
 fi
 ```
 
-## Phase 1 — Decision point: shape, layout, framework, package manager
+## Phase 1 — Decision point: mode, layout, framework, package manager
 
 Ask these together, then stop asking:
 
-- **Shape** — which kind of project: a pure frontend, a backend, or fullstack (and for
+- **Mode** — which kind of project: a pure frontend, a backend, or fullstack (and for
   fullstack, same-origin SSR or a split frontend/backend).
-- **Layout** — single repository or monorepo. Layout is orthogonal to shape: a monorepo is a
-  way of arranging a shape, never a fourth shape.
+- **Layout** — single repository or monorepo. Layout is orthogonal to mode: a monorepo is a
+  way of arranging a mode, never a fourth mode.
 - **Framework** — for a frontend, which create-vite TypeScript template; it decides the
   dependencies, the config, and the entry point that the generator writes.
 - **Package manager** — recommend `pnpm`. In this revision only `pnpm` has been verified end
@@ -312,6 +316,21 @@ grep -q 'typescript-native-bridge' pnpm-workspace.yaml
 echo "ok  catalog and overrides both point at the TypeScript 6 API bridge"
 ```
 
+### Leave the framework's TypeScript project layout alone
+
+This profile keeps the tsconfig layout the generator wrote, because that is the layout the
+template's own build script (`tsc -b`) expects: create-vite's framework templates split the
+browser program and the Node-side config file into separate project references, and a pure
+frontend has no second toolchain to reconcile with them. The single, merged tsconfig belongs
+to the profiles that compose a Nitro server into the project (not implemented in this
+revision): there `server/`, the tests directory and `nitro.config.ts` have to join one
+program, and one config extending `nitro/tsconfig` is the layout that was proven to work.
+
+What this profile does enforce about TypeScript is negative and checkable: none of those
+files may carry an alias mechanism of its own. The alias control below proves the `imports`
+map is the one that actually resolves, and the harness re-checks from outside that no
+`paths`, `resolve.alias` or `resolve.tsconfigPaths` turned up anywhere.
+
 ### Trim the configuration, then prove the trim did not hollow out the check
 
 The generator writes configuration that is not carrying its weight — an empty `fmt: {}` that
@@ -350,15 +369,6 @@ set -euo pipefail
 : "${GUIDE_PM:?Phase 1 must answer GUIDE_PM}"
 
 vp_run() { ./node_modules/.bin/vp "$@"; }
-pm_run() {
-  case "$GUIDE_PM" in
-    pnpm) pnpm "$@" ;;
-    npm) npm "$@" ;;
-    yarn) yarn "$@" ;;
-    bun) bun "$@" ;;
-    *) echo "unsupported package manager: $GUIDE_PM" >&2; exit 1 ;;
-  esac
-}
 
 # Control 1 - the type checker is alive. Plant a type error; a check that still passes is a
 # check that never looked. This is the only reason to believe the config trim above was safe.
@@ -548,7 +558,9 @@ echo "ok  dev proxy wired: /api/* -> $GUIDE_DEV_PROXY with the prefix stripped"
 
 Install the promoted skill set from the toolkit's upstream repository. The set is resolved
 from upstream **at run time** — never frozen in this guide — so a renamed or newly promoted
-skill is picked up instead of silently pinned to today's list.
+skill is picked up instead of silently pinned to today's list. The count is not asserted
+anywhere: the contract is that the installed set equals the set the upstream manifest
+declares, whatever that set is today.
 
 The install command has a trap worth naming: `skills` 1.7.0 only understands the bare
 `--skill` token. Its own documentation shows `--skill=<name>`, which the parser ignores, so
@@ -565,7 +577,7 @@ const response = await fetch("https://raw.githubusercontent.com/mattpocock/skill
 if (!response.ok) { console.error(`could not read the upstream manifest (${response.status})`); process.exit(1); }
 const manifest = await response.json();
 const names = manifest.skills.map((path) => path.replace(/\/+$/, "").split("/").pop());
-if (names.length !== 25) { console.error(`upstream declares ${names.length} promoted skills, expected 25`); process.exit(1); }
+if (names.length === 0) { console.error("the upstream manifest declares no promoted skills"); process.exit(1); }
 process.stdout.write(names.join(" "));
 ' > .vite-plus-skill-names
 
@@ -824,7 +836,7 @@ thing, more safely" but a different package with a different API and a different
 
 - **`nitropack` v2 (stable)** — rejected: v3 renamed the package, so choosing v2 means building
   against v2's API rather than derisking v3.
-- **A hand-rolled `node:http` server** — rejected: the fullstack shapes need a server that
+- **A hand-rolled `node:http` server** — rejected: the fullstack modes need a server that
   shares one project and one build with the Vite frontend, which is what Nitro's Vite plugin
   provides.
 - **Scaffolding with `create-nitro-app` and migrating Vite+ in afterwards** — rejected: it
@@ -944,7 +956,7 @@ choice instead of guessed at. Versions here are the ones that actually resolved.
 
 | Decision | Answer |
 | --- | --- |
-| Shape | ${GUIDE_MODE} |
+| Mode | ${GUIDE_MODE} |
 | Layout | ${GUIDE_LAYOUT} |
 | Framework template | ${GUIDE_FRAMEWORK} |
 | Package manager | ${GUIDE_PM} |
@@ -983,7 +995,7 @@ Installed content lives in \`.agents/skills/\`.
 ## Steps executed
 
 1. Preflight: empty target, Node version, package managers actually available, global Vite+ detected and avoided.
-2. Decision points: shape/layout/framework/package manager; versions (prereleases disclosed); dev proxy target.
+2. Decision points: mode/layout/framework/package manager; versions (prereleases disclosed); dev proxy target.
 3. Skeleton: \`vp create vite:application\` + \`--template ${GUIDE_FRAMEWORK}\`, alias map, configuration trimmed, ignore rules refined, dependencies installed.
 4. Dev proxy: \`DEV_PROXY\` in \`.env\`, transformer wired with a guard.
 5. Skills: upstream set resolved at run time, installed, lockfile verified against that set.
@@ -1004,8 +1016,9 @@ echo "ok  docs/provenance.md written"
 ## Phase 6 — Verify (the assertion set)
 
 Run this as one script and stop if any part of it fails. A red result is a report, not a task
-list: do not adjust the project until the verification agrees with it. Nothing here is
-re-implemented anywhere else — this is the assertion set.
+list: do not adjust the project until the verification agrees with it. This is the assertion
+set for one initialization; the E2E harness runs this exact text rather than keeping its own
+copy of these checks, because a second copy would be a second truth.
 
 The proxy part of the smoke test calls the backend named by `GUIDE_DEV_PROXY`, so that backend
 has to be reachable while this runs. If it is not, the proxy answers `502` and verification
@@ -1014,7 +1027,9 @@ fails — which is the correct outcome, not a reason to skip the check.
 ```bash guide:verify id=verify
 set -euo pipefail
 : "${GUIDE_MODE:?}"; : "${GUIDE_PM:?}"; : "${GUIDE_DEV_PROXY:?}"
-: "${GUIDE_PROXY_SMOKE_PATH:?}"; : "${GUIDE_DEV_PORT:?}"
+: "${GUIDE_PROXY_SMOKE_PATH:?a route that exists on the backend, for the proxy smoke test}"
+GUIDE_DEV_PORT=${GUIDE_DEV_PORT:-5173}   # Vite's own default; override only to dodge a busy port
+export GUIDE_DEV_PORT
 
 VP=./node_modules/.bin/vp
 pm_run() {
@@ -1109,7 +1124,7 @@ step "verification passed"
 
 Report, in this order:
 
-1. **What was built** — the shape, layout, framework and package manager that were chosen, and
+1. **What was built** — the mode, layout, framework and package manager that were chosen, and
    the versions that actually resolved (`docs/provenance.md` is the record).
 2. **What was verified** — the Phase 6 result, and the fact that the type checker was proven
    live with a deliberate error rather than assumed.
@@ -1121,6 +1136,9 @@ Report, in this order:
 5. **Next steps** — put the project under version control yourself (`git init`; this guide
    deliberately does not touch version control), then start the first feature with
    `/grill-with-docs` so the design conversation happens before the code.
-6. **Commands to live with** — `pnpm run dev` (dev server, port `GUIDE_DEV_PORT`),
-   `./node_modules/.bin/vp check` (format, lint, types), `pnpm run build`, `pnpm run preview`,
-   and `./node_modules/.bin/vp migrate` when it is time to move the toolchain forward.
+6. **Commands to live with** — the project's own toolchain, in vp form:
+   `./node_modules/.bin/vp dev` (dev server, port `GUIDE_DEV_PORT`),
+   `./node_modules/.bin/vp check` (format, lint, types),
+   `./node_modules/.bin/vp run build` (the project's build script),
+   `./node_modules/.bin/vp preview`, and `./node_modules/.bin/vp migrate` when it is time to
+   move the toolchain forward.

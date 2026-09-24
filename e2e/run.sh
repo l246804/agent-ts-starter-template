@@ -62,9 +62,10 @@ free_port() {
 }
 
 require_tools() {
-  for tool in node pnpm git npx; do
+  for tool in node git; do
     command -v "$tool" >/dev/null 2>&1 || die "the harness needs $tool on PATH"
   done
+  command -v "${GUIDE_PM:-pnpm}" >/dev/null 2>&1 || die "the harness needs the profile's package manager (${GUIDE_PM:-pnpm}) on PATH"
   [ -z "$(ls -A "$TARGET")" ] || die "the harness's own target directory is not empty: $TARGET"
 }
 
@@ -91,21 +92,14 @@ start_stub() {
 # ---------------------------------------------------------------------- steps
 run_plan() {
   node "$E2E_DIR/extract.mjs" --guide "$REPO_ROOT/GUIDE.md" --out "$PLAN" --answers "$ANSWERS_FILE"
-  node -e '
-    const plan = require(process.argv[1]);
-    for (const step of plan.steps) {
-      // columns: number, kind, id, payload (script path for exec, source path for file), destination path
-      console.log([String(step.n), step.kind, step.id, step.script ?? step.file, step.path ?? ""].join("\t"));
-    }
-  ' "$PLAN/plan.json" > "$RUN_DIR/plan.tsv" || die "could not read the extracted plan"
+  # The extractor printed plan.tsv; the harness reads the same file the extractor wrote rather
+  # than re-deriving the plan's shape here.
   # The harness hooks into these steps by id; a renamed step must break the harness loudly
   # rather than silently skip the accommodation or the negative controls.
-  node -e '
-    const plan = require(process.argv[1]);
-    const ids = new Set(plan.steps.map((step) => step.id));
-    const missing = ["preflight", "bootstrap"].filter((id) => !ids.has(id));
-    if (missing.length) { console.error(`the plan has no step named: ${missing.join(", ")}`); process.exit(1); }
-  ' "$PLAN/plan.json" || die "the harness depends on the plan containing the preflight and bootstrap steps"
+  for required in preflight bootstrap; do
+    grep -q "$(printf '\t')exec$(printf '\t')$required$(printf '\t')" "$PLAN/plan.tsv" \
+      || die "the harness depends on a plan step named $required"
+  done
   while IFS=$'\t' read -r n kind id payload destination; do
     case "$kind" in
       file)
@@ -133,17 +127,14 @@ run_plan() {
         ;;
       *) die "unknown plan entry kind: $kind" ;;
     esac
-  done < "$RUN_DIR/plan.tsv"
+  done < "$PLAN/plan.tsv"
 }
 
 negative_controls() {
-  local preflight
-  preflight=$(node -e '
-    const plan = require(process.argv[1]);
-    const step = plan.steps.find((s) => s.id === "preflight");
-    if (!step) { console.error("no preflight step in the plan"); process.exit(1); }
-    console.log(step.script);
-  ' "$PLAN/plan.json")
+  local preflight verify
+  preflight=$(awk -F'\t' '$2 == "exec" && $3 == "preflight" { print $4 }' "$PLAN/plan.tsv")
+  verify=$(awk -F'\t' '$2 == "verify" { print $4 }' "$PLAN/plan.tsv")
+  [ -n "$preflight" ] && [ -n "$verify" ] || die "the plan is missing the preflight or verify step"
 
   say "negative control: preflight refuses a non-empty target"
   local dirty="$RUN_DIR/negative/non-empty-target"
@@ -176,12 +167,6 @@ FAKE
   echo "  refused, and wrote nothing"
 
   say "negative control: the verify block goes red on a planted type error"
-  local verify
-  verify=$(node -e '
-    const plan = require(process.argv[1]);
-    const step = plan.steps.find((s) => s.kind === "verify");
-    console.log(step.script);
-  ' "$PLAN/plan.json")
   printf 'export const planted: number = "not a number";\n' > "$TARGET/src/__e2e_planted.ts"
   if (cd "$TARGET" && bash "$PLAN/$verify") > "$LOGS/neg-verify-red.log" 2>&1; then
     rm -f "$TARGET/src/__e2e_planted.ts"
@@ -193,16 +178,14 @@ FAKE
 
 # ----------------------------------------------------------------------- main
 say "profile $PROFILE_NAME  ->  $RUN_DIR"
-require_tools
 
 # shellcheck disable=SC1090
 set -a; . "$PROFILE_FILE"; set +a
+require_tools
 
 if printf '%s' "${GUIDE_DEV_PROXY:-}" | grep -q __STUB_PORT__; then
   stub_port=$(start_stub)
   GUIDE_DEV_PROXY=${GUIDE_DEV_PROXY/__STUB_PORT__/$stub_port}
-else
-  stub_port=""
 fi
 if printf '%s' "${GUIDE_DEV_PORT:-}" | grep -q __FREE_PORT__; then
   GUIDE_DEV_PORT=$(free_port)

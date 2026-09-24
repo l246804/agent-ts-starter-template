@@ -7,12 +7,16 @@ A framework-agnostic TypeScript starting point for agent-driven work. This repo'
 ### The artifact
 
 **指南 (guide)**:
-The repo's only product — the ordered steps an agent reads and executes, every command non-interactive, ending in a target project ready for work. Shipped as `GUIDE.md`, whose `guide:exec` / `guide:file` / `guide:verify` blocks are both the instructions and the E2E harness's executable plan.
+The repo's only product — the ordered steps an agent reads and executes, every command non-interactive, ending in a target project ready for work. Shipped as `GUIDE.md`, whose `guide:` marked blocks are both the instructions and the E2E harness's executable plan.
 _Avoid_: 模板, 初始模板, 文档, recipe
 
 **预答 (pre-answered answers)**:
 The decision points supplied up front as `GUIDE_*` environment variables, which is what lets the whole flow run unattended — and what the E2E harness supplies from a profile file.
 _Avoid_: 参数, 配置, 环境变量
+
+**profile**:
+One supported (形态, 布局) combination with its pre-answered answers file and its own harness assertions — the unit a later ticket adds, and the only thing `e2e/run.sh --profile` selects.
+_Avoid_: 模版, 场景, 配置集
 
 **验证段 (verify step)**:
 The guide's last step, marked `guide:verify`: the single assertion set for one initialization, extracted and run as-is by the harness rather than re-implemented next to it.
