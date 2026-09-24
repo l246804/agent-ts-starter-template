@@ -56,6 +56,10 @@ _Avoid_: monorepo 形态, 结构
 `fullstack` × `single` — one project that renders the page on the server and hydrates it in the browser, with its API on the same origin, so it has no dev proxy and no `index.html`. The other fullstack shape is the split frontend/backend, which is `fullstack` × `monorepo`.
 _Avoid_: SSR 形态, SSR 模式, 服务端渲染项目
 
+**前后分离形状 (split shape)**:
+`fullstack` × `monorepo` — one pnpm workspace whose root package is the server (Nitro v3 as a Vite plugin, `defaultPackage: "."`, routes with no `/api` prefix) and whose frontend is the app under `apps/website`. The two halves are two dev servers on two ports, and the app reaches the API through a dev proxy that strips `/api/` exactly as the production reverse proxy does. Versions live in the workspace catalog; the plan (布局) is one workspace, the deployment is two artefacts.
+_Avoid_: monorepo 形态, 前后端分离项目, 微服务
+
 **骨架 (skeleton)**:
 The file structure of the initialized target project, with no business logic in it.
 _Avoid_: 初始模板

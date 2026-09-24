@@ -54,6 +54,9 @@
 ## monorepo 编排（实测）
 
 16. 📌 跨包命令一律用 `vp run -r <task>`：**没有该 task 的包会被静默跳过、rc=0**——这正是脚手架 `ready` 脚本的用法，也是期望行为。`-r check` 同理。
+    - ✅ 前后分离 profile 的实测（`vite:monorepo` + 根服务端 + `apps/website`）：`vp run -r check` 只调度**定义了 check 的包**（root、utils；`apps/website` 被跳过、无提示、exit 0），用 `vp run -r -v check` 的 task 汇总可断言应用**不在**被调度列表里。**根 `vp check` 覆盖全工作区**（含应用源码）：种在 `apps/website/src` 的类型错误会让根 `vp check` 变红，但不会让"只跑各包 check script"的 `-r check` 因为应用而红——两者不可互换，指南的 verify 两个都跑。
+    - ⚠️ `vp run -r test` 会**跑两遍**：根的 `vp test` 先做一次全工作区扫描，各包自己的 `test` script 再跑一次同一批文件（实测 utils 的测试文件被执行两次，无提示）。**根不要定义"全工作区扫描式"的 test script 再配 `-r test`**；指南的 `ready` 用 `vp check && vp test && vp run -r build`。
+    - ⚠️ task 缓存按输入判定：`vp run -r build` 重放缓存时**不会重新读取**非输入文件（含 `.env`），配置错误可能"绿"到 `--no-cache` 才暴露。验证步骤（指南 verify）因此对构建显式传 `--no-cache`。
 17. ⚠️ 但 `--filter` 会把"缺 task"变成**致命错误**：`vp run --filter ./apps/website test` → `error: Task "test" not found` rc=1（`-r --fail-if-no-match` 则仍是 rc=0）。要么只用 `-r`，要么保证被 filter 的每个包都有该 task。
 18. 📌 根 `.gitignore` 里一行 `.output` 覆盖所有子包（`**/.output` 亦可）；漏了它，根 `vp check` 与 `-r check` 都会因为各包的 `.output` 而失败。
 19. ⚠️ 根目录的 `vp dev` / `vp build` 需要目标包：`vp -C <pkg> dev` 或 `vp run -r build`；裸跑 rc=1（提示 "needs a target package"）。
@@ -96,8 +99,9 @@
 35. 📌 **monorepo 一律只用 vp 命令，禁止 pnpm/yarn/bun 命令**（避免同一个项目里存在两套操作方式）：跨包用 `vp run -r <task>`，定位单包用 `vp -C <pkg> <cmd>`，依赖安装/新增用 `vp install` / `vp add`，常用命令注册在根 `package.json`（例：前后分离的 `dev:server`、`dev:website`）。
    - `vp <name>` 与 `vp run <name>` 的区别（内置命令 vs script/task、script 不能覆盖内置）**不在此重复**：vp 自己写进 AGENTS.md 的「Built-in Commands vs Scripts」段已讲清楚，我们沿用。
    - 我们额外要守的是 vp 那段**没有**说的三条：跨包必须用 `-r`（`--filter` 遇到缺 task 的包是 rc=1，见 #17）；根 task 名与根 script 名不可同名（#21）；根命令需要目标包，所以根服务端要设 `defaultPackage: "."`（#25）。
-   - ✅ **已实测（不带 `CI=1`）**：`vp add -D <pkg>` 在**单项目**里可用（RC=0、写入 devDeps、lockfile 更新）；在**workspace 根**也可用且**不需要 `-w`**，并且在 `catalogMode: prefer` 下它把版本写进**根 catalog**、包内只留 `"<pkg>": "catalog:"`。此前观察到的 `ERR_PNPM_ADDING_TO_ROOT` 与 frozen-lockfile 摩擦都来自**直接调 `pnpm` / `CI=1`**，不是 vp 的行为。
-   - ⚠️ 残余未验证：上述根级 `vp add` 是在**手工搭的最小 workspace** 上验证的；真实 `vite:monorepo` 脚手架只验证过其它路径（`vp run -r`、构建、catalog），未单独复测 `vp add`。
+   - ✅ **已实测（不带 `CI=1`）**：`vp add -D <pkg>` 在**单项目**里可用（RC=0、写入 devDeps、lockfile 更新）；在 **workspace 根**必须带 `-w`（`vp add -w -D <pkg>`，RC=0），不带 `-w` 在真实 `vite:monorepo` 脚手架上被拒（`ERR_PNPM_ADDING_TO_ROOT`，exit 1，**什么都没改**）；`vp -C <pkg> add -D <pkg>` 也可以。两者在 `catalogMode: prefer` 下都把版本写进**根 catalog**、包内只留 `"<pkg>": "catalog:"`。此前观察到的 `ERR_PNPM_ADDING_TO_ROOT` 与 frozen-lockfile 摩擦都来自**直接调 `pnpm` / `CI=1`**，不是 vp 的行为。
+   - ✅ **残余风险已关闭（#5）**：根级 `vp add -w -D` 与 `vp -C <pkg> add -D` 都在**真实 `vite:monorepo` 脚手架**上复测通过；`vp install`（非 CI）也在真实脚手架上可用（`Scope: all 3 workspace projects` → 增量安装 nitro）。`vp dlx <pkg>[@<版本>] <args>` 实测可用（`vp dlx skills@1.7.0 --help` RC=0），因此 monorepo 流程里不存在 pnpm 命令（自举那一次除外）。
+   - **指南不在步骤里用 `vp add`**：版本是契约，manifest 一律按 JSON 编辑 + `vp install`（与其它形态一致）；`vp add` 作为"以后加依赖"的命令写进目标项目的约束段。
 36. 📌 **服务端不使用 `/api` 前缀**（**有外部前端**的形态）：handlers 放 `server/routes/`（放 `server/api/` 会自动加 `/api`）。生产由 nginx 反代 `api` 前缀并**去掉前缀**；dev 由**前端包**用 **`vite-proxy-from-env@1.1.0`** + `rewrite: ''` 复刻同一行为（已实测等价）。
     **存在规则**：只要存在一个**不与服务端同源的前端**就需要代理，且配置只放在**前端包**里。
     - ⚠️ **SSR 单仓是这条的例外**：那里没有外部前端，页面与 API 同源，因此既没有代理也不写 `.env`；API 放在 `server/routes/api/*`，URL `/api/…` 来自**文件路径**，不是 `server/api/` 的隐式前缀（实测 `server/routes/api/hello.ts` → `/api/hello`；未知 `/api/…` 会由 SSR 入口渲染成页面，见"已知边界"）。
@@ -113,8 +117,10 @@
     - 前端包需要**新建** `vite.config.ts`（脚手架不生成）：`defineConfig(({ mode }) => …)` + `loadEnv(mode, process.cwd(), "")`（**从 `vite-plus` 导入**）+ `server.proxy = proxyTransformer(env.DEV_PROXY)`。
     - `DEV_PROXY` **放 `.env`**（不是 `.env.development`）：`loadEnv` 按 mode 读文件，放 `.env.development` 会让 `vp build`（mode=production）读不到并**误杀构建**。本地覆盖交给用户自己的 `.env.local` / `.env.development.local`（被 `*.local` 规则忽略）。
     - ⚠️ 守卫**无条件、一行**，**不加** `command === "serve"` 判断：`loadEnv` 同时读文件与进程环境，所以它只在变量在两边都不存在时才响——那确实是坏状态。缺它时 `/api/*` 会**静默返回 200 + SPA HTML**（实测，dev 日志零输出）。
-    - ⚠️ `prefix` 会被 `new RegExp(prefix)` 编译：必须写 `/api/`（**带尾斜杠**），否则 `/apix/hello` 也会被代理。
+    - ⚠️ `prefix` 会被 `new RegExp(prefix)` 编译：必须写 `/api/`（**带尾斜杠**），否则 `/apix/hello` 也会被代理（实测两种写法都会让 `/api/hello` → `/hello`，但 `/api` 还会把 `/apix/hello` 代理出去 → 服务端 404）。
     - 已验证：`:5173/api/hello` → 200 JSON 且服务端看到 `/hello`；`:3000/api/hello` → 404（服务端确实无前缀）；`/api` 下未知路径 → 404 而非 SPA；进程环境覆盖 `.env` 生效；目标不通 → 502。
+    - ✅ **前后分离（monorepo）实测**：代理配置在 `apps/website/vite.config.ts`（模板不生成，指南新建）+ `apps/website/.env`（提交），目标由**根服务端端口**推出（不设决策点）。实测 `:5173/api/hello` → 200 `application/json;charset=UTF-8`，body 里 `serverSawPath=/hello`、`serverSawHost=127.0.0.1:3000`（即根服务端应答）；`:5173/api/<未知>` → **服务端 404 JSON**（`/api/` 内 SPA fallback 不生效）；`:5173/<未知>` → 应用 HTML 200；带浏览器 `Accept` 头不影响；目标写错/不可达 → **502 text/plain**（不是静默 HTML）。缺 `DEV_PROXY` 时：dev server **拒绝启动**（`Error: DEV_PROXY is not set — see .env`，exit 1），冷构建同样失败（实测 `vp run --no-cache -r build` exit 1）；**注意 task 缓存会掩盖后者**（见 #16）。
+    - ✅ **verify 的断言是"路径被剥掉"而不是状态码**：handler 回显 `serverSawPath`，verify 从前端端口断言它等于 `/hello`（proxy 转发未剥前缀 → 404；没有 proxy → 200 HTML；目标死 → 502）。harness 的反向控制删 `.env` 里的 `DEV_PROXY`，要求 verify **红在 DEV_PROXY 上**。
     - 备注：该包由**本仓库作者**维护（第一方，MIT，零依赖）；其 `dist/index.d.ts` 引用了未声明的 `vite`，`skipLibCheck: false` 且项目内无 vite 时会 TS2307——我们 `skipLibCheck: true`，不受影响。
 
 37. 📌 **`.gitignore` 精修**（脚手架产物要改两处）：
@@ -178,6 +184,7 @@
 - ⚠️ 设了 `output: { dir: "dist" }` 之后**不要再设 Vite 自己的 `build.outDir`**：Nitro 插件已经把 client 构建指到自己的 public 目录，显式 `build.outDir` 会被登记成又一份 public assets 源，于是 Nitro 把自己的产物再拷进自己（`dist/public/public/**`，且能通过 `/public/…` 访问），全程 exit 0。
 - ✅ 后端单仓形态已端到端验证（`e2e/run.sh --profile backend-single`）：无全局 CLI（harness 用一个只会失败的 `vp` 挡在 PATH 最前面）、插件有可访问路由、`/api` 前缀不存在、产物在 `dist/` 且构建后静态检查仍绿、Nitro 版本显式钉住、`tests/` 在路由扫描目录之外。决策与取舍见 ADR-0007。
 - ✅ 全栈 SSR 单仓形态已端到端验证（`e2e/run.sh --profile fullstack-single`）：没有 `index.html`、没有 `src/main.tsx`、两个 SSR 入口齐备、`nitro()` 在脚手架的 `lazyPlugins` 数组里被调用、客户端入口在 `environments.client.build.rollupOptions.input` 里声明、合并后的单一 tsconfig（两个 project-reference 配置已删）、`server/routes/api/hello.ts` 同源且无代理/无 `.env`、构建同时产出 `dist/public/assets/*.js` 与 `dist/server/_ssr/ssr.mjs`；verify 在构建产物与 dev server 两条路径上断言渲染标记与同源 `/api/hello`。harness 的两个 SSR 反向控制也跑通：种 `index.html` 必须让 verify 红在形状上，移除渲染标记必须让 verify 红在 render marker 上。决策与取舍见 ADR-0008。
+- ✅ **前后分离（`fullstack` × `monorepo`）形态已端到端验证**（`e2e/run.sh --profile fullstack-monorepo`）：workspace 根是服务端（`defaultPackage: "."` + `plugins: [nitro()]`、`serverDir: "./server"`、`output: { dir: "dist" }`、`server/routes/hello.ts` 无前缀）、`apps/website` 是前端（demo 已精简、无 `check`/`test` script、页面带 smoke 标记）、catalog 承载全部版本且每个 manifest 的每个依赖都是 `catalog:` 引用（root/app/utils 的 `vite-plus` 解析同版本）、根命令 `dev:server`/`dev:website`/`check`/`test`/`build`/`ready` 全为 vp 形式、任何包的 script 里都不出现 pnpm/npm/yarn/bun、构建在根一次跑通（`vp run -r build` → `dist/server/index.mjs` + `dist/nitro.json`、`apps/website/dist`、`packages/utils/dist`，无 `.output`）、`vp check` 覆盖全工作区且 `vp run -r check` 跳过应用、dev 下从前端端口 `/api/hello` 200 JSON 且服务端看到 `/hello`。harness 的新反向控制（删 `DEV_PROXY` → verify 必须红在 `DEV_PROXY`）与 guard 的新拒绝分支（前后分离 + `react-ts`、monorepo 未答 `GUIDE_PLACEHOLDER`）都跑通。决策与取舍见 ADR-0009。
 - ⚠️ 目标目录必须**完全为空**（`vp create` 拒绝非空目录，也不接受已有的 `.git`）。
 - ✅ **SSR 形状定案：删 `index.html`**（官方 `examples/vite-ssr-react` 的布局）。两种形状都实测可行，但保留模板（靠 `<!--ssr-outlet-->` 注释接通）的那种缺注释时会**静默**退化为纯客户端壳：SSR 入口照样被探测、照样打日志（`Using \`src/entry-server.tsx\` as vite ssr entry.`）、`/` 返回客户端壳、**无警告、exit 0**（"探测 ≠ 渲染"，Round 5 的最坏失败形状）。删掉模板后插件安装内置 renderer，SSR 入口的 `Response` 原样透传（status/headers/body 都属于入口）——成因被消除，而不是被守卫。骨架页带固定渲染标记，verify 断言"标记存在"而非 200；harness 的反向控制种一个没有 outlet 的 `index.html`，退化后的构建**不再产出 `_ssr/`**，于是 verify 红在形状上（渲染标记是它后面那一层），另一个反向控制专门移除渲染标记来证明标记断言本身会红。取舍见 ADR-0008。
 - ⚠️ 形状不可混用：整文档入口 + 带 outlet 的模板 ⇒ 文档被忽略、body 被塞进模板（嵌套 `<html>`）。

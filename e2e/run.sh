@@ -16,9 +16,10 @@
 #   6. runs the negative controls: the preflight must refuse a non-empty target and an old
 #      Node, the profile guard must refuse an unimplemented answer without writing anything,
 #      the route-scan assertion must catch a test file planted next to the routes, the
-#      verify block must go red on a planted type error, and — in the SSR profile — a planted
-#      index.html must stop being a silent client-shell degradation and a removed render
-#      marker must be what the smoke notices.
+#      verify block must go red on a planted type error, the split shape's missing proxy
+#      config must fail loudly instead of serving the app's HTML, and — in the SSR profile
+#      — a planted index.html must stop being a silent client-shell degradation and a removed
+#      render mark must be what the smoke notices.
 #
 # What it is NOT: a replacement for an agent reading GUIDE.md. The guide's decision
 # points are pre-answered here, and the parts that need judgement are listed in
@@ -34,7 +35,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --profile) PROFILE_NAME="$2"; shift 2 ;;
     --workdir) WORK_ROOT="$2"; shift 2 ;;
-    --help) sed -n '2,25p' "$0"; exit 0 ;;
+    --help) sed -n '2,26p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -214,12 +215,13 @@ FAKE
 
   say "negative control: the profile guard refuses an answer no profile implements"
   # The guard is the guide's "stop before writing" edge, so each of its refusals is exercised:
-  # a combination no profile implements, a base template a backend project cannot prune, and a
-  # framework the SSR shape cannot render and hydrate. Each must fail without writing anything
-  # into the (empty) target it is pointed at.
-  if (cd "$old_target" && GUIDE_MODE=fullstack GUIDE_LAYOUT=monorepo bash "$PLAN/$guard") > "$LOGS/neg-guard-profile.log" 2>&1; then
+  # a combination no profile implements, a base template a backend project cannot prune, a
+  # framework the SSR shape cannot render and hydrate, a split shape asked for a base it does not
+  # re-scaffold, and a monorepo without its placeholder answer. Each must fail without writing
+  # anything into the (empty) target it is pointed at.
+  if (cd "$old_target" && GUIDE_MODE=frontend GUIDE_LAYOUT=monorepo bash "$PLAN/$guard") > "$LOGS/neg-guard-profile.log" 2>&1; then
     cat "$LOGS/neg-guard-profile.log"
-    die "the profile guard accepted mode=fullstack layout=monorepo"
+    die "the profile guard accepted mode=frontend layout=monorepo"
   fi
   if (cd "$old_target" && GUIDE_MODE=backend GUIDE_LAYOUT=single GUIDE_FRAMEWORK=react-ts bash "$PLAN/$guard") > "$LOGS/neg-guard-framework.log" 2>&1; then
     cat "$LOGS/neg-guard-framework.log"
@@ -229,10 +231,22 @@ FAKE
     cat "$LOGS/neg-guard-ssr-base.log"
     die "the profile guard accepted a fullstack SSR project on the vanilla-ts base"
   fi
+  if (cd "$old_target" && GUIDE_MODE=fullstack GUIDE_LAYOUT=monorepo GUIDE_FRAMEWORK=react-ts GUIDE_PLACEHOLDER=yes bash "$PLAN/$guard") > "$LOGS/neg-guard-split-base.log" 2>&1; then
+    cat "$LOGS/neg-guard-split-base.log"
+    die "the profile guard accepted a split project on a base the monorepo template does not write"
+  fi
+  # The profiles' answers are exported in this shell, so a control that needs an answer *absent*
+  # has to say so: an empty assignment is what "not answered" means here.
+  if (cd "$old_target" && GUIDE_MODE=fullstack GUIDE_LAYOUT=monorepo GUIDE_FRAMEWORK=vanilla-ts GUIDE_PLACEHOLDER= bash "$PLAN/$guard") > "$LOGS/neg-guard-placeholder.log" 2>&1; then
+    cat "$LOGS/neg-guard-placeholder.log"
+    die "the profile guard accepted a monorepo without its placeholder-package answer"
+  fi
   [ -z "$(ls -A "$old_target")" ] || die "the profile guard wrote into the target it refused"
   grep -q 'vanilla-ts' "$LOGS/neg-guard-framework.log" || die "the framework refusal does not name the base it wants"
   grep -q 'react-ts' "$LOGS/neg-guard-ssr-base.log" || die "the SSR base refusal does not name the base it wants"
-  echo "  refused fullstack/monorepo, backend + react-ts (naming vanilla-ts), fullstack SSR + vanilla-ts (naming react-ts)"
+  grep -q 'vanilla-ts' "$LOGS/neg-guard-split-base.log" || die "the split base refusal does not name the base the monorepo template writes"
+  grep -q 'GUIDE_PLACEHOLDER' "$LOGS/neg-guard-placeholder.log" || die "the placeholder refusal does not name the answer it needs"
+  echo "  refused frontend/monorepo, backend + react-ts, fullstack SSR + vanilla-ts, split + react-ts, monorepo without GUIDE_PLACEHOLDER"
 
   say "negative control: the verify block goes red on a planted type error"
   # The plant goes where this profile's source lives: a frontend has src/, a backend has server/
@@ -250,6 +264,53 @@ FAKE
   rm -f "$planted"
   echo "  verify failed as it must (see $LOGS/neg-verify-red.log)"
 
+  # The split shape's silent failure, made to happen on purpose. `proxyTransformer` returns an
+  # empty config for a missing variable — the dev server starts, `/api/*` answers 200 with the
+  # app's HTML, and the log says nothing — so the guide's guard exists to make that state loud.
+  # The control removes the variable from the app's committed `.env` and requires the verify block
+  # to go red naming it: a green run there would mean the failure mode is silent again.
+  # It belongs to the split profile, decided by the profile's answers rather than by what the
+  # target happens to contain — the same rule every accommodation here follows.
+  if [ "${GUIDE_MODE:-}" = "fullstack" ] && [ "${GUIDE_LAYOUT:-}" = "monorepo" ]; then
+    [ -f "$TARGET/apps/website/.env" ] \
+      || die "the fullstack/monorepo profile produced no apps/website/.env, so its negative control cannot run"
+    say "negative control: a missing DEV_PROXY fails loudly instead of serving the app's HTML"
+    cp "$TARGET/apps/website/.env" "$RUN_DIR/negative/website-env.bak"
+    grep -v '^DEV_PROXY' "$RUN_DIR/negative/website-env.bak" > "$TARGET/apps/website/.env"
+    grep -q 'DEV_PROXY' "$TARGET/apps/website/.env" && die "the harness could not remove DEV_PROXY from the app's .env"
+    if (cd "$TARGET" && bash "$PLAN/$verify") > "$LOGS/neg-split-noenv.log" 2>&1; then
+      cp "$RUN_DIR/negative/website-env.bak" "$TARGET/apps/website/.env"
+      die "verify passed with no DEV_PROXY — the proxy failure is silent again"
+    fi
+    cp "$RUN_DIR/negative/website-env.bak" "$TARGET/apps/website/.env"
+    grep -q 'DEV_PROXY' "$TARGET/apps/website/.env" || die "the harness did not restore the app's .env"
+    grep -q 'DEV_PROXY' "$LOGS/neg-split-noenv.log" || {
+      tail -5 "$LOGS/neg-split-noenv.log"
+      die "verify failed without DEV_PROXY, but not on DEV_PROXY (see $LOGS/neg-split-noenv.log)"
+    }
+    echo "  verify failed as it must, naming DEV_PROXY (see $LOGS/neg-split-noenv.log)"
+
+    # The verify block stops at the build, so the *dev* half of the failure mode is asserted on its
+    # own: with no DEV_PROXY the app's dev server must refuse to start rather than come up and
+    # answer /api/* with the app's HTML, which is the state the guard exists to make loud.
+    printf '# DEV_PROXY removed by the probe\n' > "$TARGET/apps/website/.env"
+    set +e
+    (cd "$TARGET" && timeout 60 ./node_modules/.bin/vp -C apps/website dev --port "$GUIDE_WEBSITE_PORT" --strictPort) \
+      > "$LOGS/neg-split-noenv-dev.log" 2>&1
+    dev_code=$?
+    set -e
+    cp "$RUN_DIR/negative/website-env.bak" "$TARGET/apps/website/.env"
+    case "$dev_code" in
+      0) cat "$LOGS/neg-split-noenv-dev.log"; die "the app's dev server started with no DEV_PROXY — /api/* would answer the app's HTML" ;;
+      124) cat "$LOGS/neg-split-noenv-dev.log"; die "the app's dev server neither refused nor started: it hung (see $LOGS/neg-split-noenv-dev.log)" ;;
+    esac
+    grep -q 'DEV_PROXY' "$LOGS/neg-split-noenv-dev.log" || {
+      tail -5 "$LOGS/neg-split-noenv-dev.log"
+      die "the app's dev server refused to start, but not on DEV_PROXY (see $LOGS/neg-split-noenv-dev.log)"
+    }
+    echo "  and the app's dev server refused to start, naming DEV_PROXY (see $LOGS/neg-split-noenv-dev.log)"
+  fi
+
   # The SSR shape's silent degradation, made to happen on purpose. An index.html is accepted as
   # the renderer template, and with no `<!--ssr-outlet-->` comment inside it Nitro still detects
   # the SSR entry, still logs it, and still exits 0 — while the build quietly stops being an SSR
@@ -258,8 +319,9 @@ FAKE
   # marker-removal control below is the one that proves the smoke's own layer.
   # The SSR controls belong to the SSR profile — decided by the profile's answers, never by what
   # the target happens to contain: a fullstack run whose shape is missing is a failure to report,
-  # not a control to skip silently (the same rule the harness applies to every accommodation).
-  if [ "${GUIDE_MODE:-}" = "fullstack" ]; then
+  # not a control to skip silently (the same rule the harness applies to every accommodation). The
+  # split shape is `fullstack` too, so the layout is part of the gate.
+  if [ "${GUIDE_MODE:-}" = "fullstack" ] && [ "${GUIDE_LAYOUT:-}" = "single" ]; then
     [ -f "$TARGET/src/entry-server.tsx" ] \
       || die "the fullstack profile produced no src/entry-server.tsx, so its negative controls cannot run"
     say "negative control: a planted index.html is not a silent client-shell degradation"
@@ -322,7 +384,12 @@ fi
 if printf '%s' "${GUIDE_DEV_PORT:-}" | grep -q __FREE_PORT__; then
   GUIDE_DEV_PORT=$(free_port)
 fi
-export GUIDE_DEV_PROXY GUIDE_DEV_PORT
+# The split shape needs two: the workspace root server's port (which is also what the app's
+# DEV_PROXY points at — the guide writes that file from GUIDE_DEV_PORT) and the frontend app's.
+if printf '%s' "${GUIDE_WEBSITE_PORT:-}" | grep -q __FREE_PORT2__; then
+  GUIDE_WEBSITE_PORT=$(free_port)
+fi
+export GUIDE_DEV_PROXY GUIDE_DEV_PORT GUIDE_WEBSITE_PORT
 
 ANSWERS_FILE="$RUN_DIR/answers.env"
 env | grep -E '^GUIDE_[A-Z0-9_]+=' | sort > "$ANSWERS_FILE"

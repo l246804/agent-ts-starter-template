@@ -13,7 +13,7 @@
  * Any failed check exits 1: a green E2E run has to mean the whole contract holds.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, copyFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readAnswers } from "./lib/answers.mjs";
@@ -131,9 +131,27 @@ function readTsconfig(relative) {
 const manifest = readJson("package.json");
 const mode = answers.GUIDE_MODE;
 const layout = answers.GUIDE_LAYOUT;
-// Whether this shape has a server side: a backend project is one, and the SSR shape is a
-// frontend and a server in the same project.
+// Whether this shape has a server side: a backend project is one, the SSR shape is a frontend and
+// a server in the same project, and the split shape is a server package and a frontend package.
 const hasServer = mode === "backend" || mode === "fullstack";
+const isSsr = mode === "fullstack" && layout === "single";
+const isSplit = mode === "fullstack" && layout === "monorepo";
+// Whether a frontend reaches its backend over a dev proxy: a pure frontend's backend is somewhere
+// else, and the split shape's is the workspace root server on another port.
+const hasProxy = mode === "frontend" || isSplit;
+// Package directories of the workspace layout, in the order the guide names them. The placeholder
+// package is the profile's decision, so it is only part of the workspace when it exists.
+const splitPackages = [
+  [".", "package.json"],
+  ["apps/website", "apps/website/package.json"],
+  ...(existsSync(join(target, "packages/utils/package.json")) ? [["packages/utils", "packages/utils/package.json"]] : []),
+];
+
+function resolvedVersion(base, name) {
+  const path = join(target, base, "node_modules", name, "package.json");
+  assert(existsSync(path), `${base}/node_modules/${name} is not installed`);
+  return JSON.parse(readFileSync(path, "utf8")).version;
+}
 
 // ---------------------------------------------------------------- guard rails
 check("package.json pins every version (no `latest`)", () => {
@@ -156,8 +174,33 @@ check("vite-plus is a project devDependency, not a global", () => {
 });
 
 check("TypeScript is on the decided v7 line", () => {
-  const spec = manifest.devDependencies?.typescript;
   const expected = answers.GUIDE_TS_VERSION;
+  if (isSplit) {
+    // In the workspace layout TypeScript lives in the catalog, and the packages that compile
+    // reference it there — the root manifest does not name it at all, because the root's own
+    // program is checked by the toolchain rather than by a `tsc` the root owns.
+    const workspace = read("pnpm-workspace.yaml");
+    const catalogEntry = (name) => {
+      const match = new RegExp(`^\\s+"?'?${name}'?:\\s*(.+?)\\s*$`, "m").exec(workspace);
+      return match ? match[1] : "";
+    };
+    const pinned = catalogEntry("typescript");
+    if (answers.GUIDE_TNB === "yes") {
+      assert(pinned.includes("typescript-native-bridge"), `the catalog does not point typescript at the bridge: ${pinned}`);
+    } else {
+      // The catalog entry is the version decision: it has to be the answer, not just any 7.x.
+      assert(
+        pinned === answers.GUIDE_TS_VERSION,
+        `the workspace catalog pins typescript ${JSON.stringify(pinned)}, the decision was ${answers.GUIDE_TS_VERSION}`,
+      );
+    }
+    const app = readJson("apps/website/package.json");
+    assert(app.devDependencies?.typescript === "catalog:", `apps/website says typescript@${app.devDependencies?.typescript}`);
+    const resolved = resolvedVersion("apps/website", "typescript");
+    assert(/^7\./.test(resolved), `apps/website resolves typescript@${resolved}, expected the 7.x line`);
+    return `typescript@${resolved} via the workspace catalog (${pinned})`;
+  }
+  const spec = manifest.devDependencies?.typescript;
   if (answers.GUIDE_TNB === "yes") {
     assert(
       spec === "catalog:" || String(spec).includes("typescript-native-bridge"),
@@ -176,24 +219,43 @@ check("TypeScript is on the decided v7 line", () => {
 
 // -------------------------------------------------------------------- aliases
 check("path aliases exist only as package.json `imports`", () => {
-  const imports = manifest.imports;
-  assert(imports && imports["#/*"], "package.json has no `#/*` imports entry");
-  const entry = imports["#/*"];
-  assert(entry.types === "./*.ts", `imports types branch is ${JSON.stringify(entry.types)}`);
-  assert(entry.default === "./*", `imports default branch is ${JSON.stringify(entry.default)}`);
-  const keys = Object.keys(entry);
-  assert(keys[0] === "types", `the types branch must come first, key order is ${keys.join(",")}`);
+  const maps = [[".", manifest]];
+  if (isSplit) maps.push(["apps/website", readJson("apps/website/package.json")]);
+  for (const [base, own] of maps) {
+    const imports = own.imports;
+    assert(imports && imports["#/*"], `${base}/package.json has no \`#/*\` imports entry`);
+    const entry = imports["#/*"];
+    assert(entry.types === "./*.ts", `${base}: imports types branch is ${JSON.stringify(entry.types)}`);
+    assert(entry.default === "./*", `${base}: imports default branch is ${JSON.stringify(entry.default)}`);
+    const keys = Object.keys(entry);
+    assert(keys[0] === "types", `${base}: the types branch must come first, key order is ${keys.join(",")}`);
+  }
 
-  const tsconfigs = readdirSync(target).filter((name) => /^tsconfig.*\.json$/.test(name));
+  // Every tsconfig in the workspace is checked, root and packages alike: an alias mechanism of its
+  // own anywhere is the failure this rule exists to prevent.
+  const tsconfigs = [];
+  const skip = new Set(["node_modules", "dist", ".git", ".agents"]);
+  const walk = (dir) => {
+    for (const entry of readdirSync(join(target, dir), { withFileTypes: true })) {
+      if (skip.has(entry.name)) continue;
+      const full = dir ? `${dir}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(full);
+      else if (/^tsconfig.*\.json$/.test(entry.name)) tsconfigs.push(full);
+    }
+  };
+  walk("");
   for (const name of tsconfigs) {
     const config = readTsconfig(name);
     assert(!("paths" in (config.compilerOptions ?? {})), `${name} still has compilerOptions.paths`);
     assert(!("baseUrl" in (config.compilerOptions ?? {})), `${name} still has compilerOptions.baseUrl (removed in TS7)`);
   }
-  const viteConfig = read("vite.config.ts");
-  assert(!viteConfig.includes("resolve.alias"), "vite.config.ts uses resolve.alias");
-  assert(!viteConfig.includes("tsconfigPaths"), "vite.config.ts uses resolve.tsconfigPaths");
-  return `${tsconfigs.length} tsconfig(s) checked`;
+  const viteConfigs = ["vite.config.ts", ...(isSplit ? ["apps/website/vite.config.ts"] : [])];
+  for (const name of viteConfigs) {
+    const viteConfig = read(name);
+    assert(!viteConfig.includes("resolve.alias"), `${name} uses resolve.alias`);
+    assert(!viteConfig.includes("tsconfigPaths"), `${name} uses resolve.tsconfigPaths`);
+  }
+  return `${tsconfigs.length} tsconfig(s), ${viteConfigs.length} vite config(s), maps in ${maps.map(([base]) => base).join(" + ")}`;
 });
 
 // ------------------------------------------------------------- configuration
@@ -233,19 +295,31 @@ if (hasServer) {
     const spec = manifest.devDependencies?.nitro;
     assert(spec, "nitro is not in devDependencies");
     assert(!String(spec).includes("latest"), `nitro is unpinned: ${spec}`);
-    assert(
-      spec === answers.GUIDE_NITRO_VERSION,
-      `package.json says nitro@${spec}, the decision was ${answers.GUIDE_NITRO_VERSION}`,
-    );
+    if (isSplit) {
+      // In the workspace layout the pin lives in the catalog and the manifest references it; the
+      // catalog's own entry is what has to carry the exact prerelease (checked in the workspace
+      // checks below as well, from the manifests' side).
+      assert(spec === "catalog:", `the root says nitro@${spec}, expected the catalog reference`);
+      const workspace = read("pnpm-workspace.yaml");
+      assert(
+        new RegExp(`^\\s+"?nitro"?:\\s*${answers.GUIDE_NITRO_VERSION.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "m").test(workspace),
+        `the workspace catalog does not pin nitro to ${answers.GUIDE_NITRO_VERSION}`,
+      );
+    } else {
+      assert(
+        spec === answers.GUIDE_NITRO_VERSION,
+        `package.json says nitro@${spec}, the decision was ${answers.GUIDE_NITRO_VERSION}`,
+      );
+    }
     // The repo's ADR-0003 fixes Nitro v3, and v3 has no stable release: a pin that had drifted
     // off the 3.x prerelease line would mean the decision record and the project disagree.
-    assert(/^3\.\d/.test(spec), `ADR-0003 fixes Nitro v3; the pin is ${spec}`);
-    assert(/-(beta|alpha|rc)/i.test(spec), `Nitro v3 is prerelease-only; ${spec} does not look like one`);
+    assert(/^3\.\d/.test(answers.GUIDE_NITRO_VERSION), `ADR-0003 fixes Nitro v3; the pin is ${answers.GUIDE_NITRO_VERSION}`);
+    assert(/-(beta|alpha|rc)/i.test(answers.GUIDE_NITRO_VERSION), `Nitro v3 is prerelease-only; ${answers.GUIDE_NITRO_VERSION} does not look like one`);
     const resolved = JSON.parse(
       readFileSync(join(target, "node_modules", "nitro", "package.json"), "utf8"),
     ).version;
     assert(resolved === answers.GUIDE_NITRO_VERSION, `node_modules/nitro resolved to ${resolved}`);
-    return `nitro@${resolved} (v3 prerelease, pinned)`;
+    return `nitro@${resolved} (v3 prerelease, pinned${isSplit ? " through the catalog" : ""})`;
   });
 
   check("tests/ is generated with its placeholder and stays out of the route scan", () => {
@@ -305,7 +379,146 @@ if (mode === "backend") {
   });
 }
 
-if (mode === "fullstack") {
+if (isSplit) {
+  // The split shape's structure: the workspace root is the server, the frontend is a package
+  // beside it, and the root is not a page. Each of these is the difference between this shape and
+  // a half-pruned single project.
+  check("the workspace root is the server and apps/website is the frontend", () => {
+    assert(!existsSync(join(target, "index.html")), "index.html exists at the workspace root — the root is a server, not a page");
+    assert(!existsSync(join(target, "src")), "src/ exists at the workspace root — the frontend lives in apps/website");
+    for (const file of ["apps/website/index.html", "apps/website/src/main.ts", "apps/website/package.json"]) {
+      assert(existsSync(join(target, file)), `${file} is missing`);
+    }
+    // The scaffold's demo is pruned in this shape, exactly as in the others; the minimal page is
+    // what the smoke test reads its marker from.
+    for (const gone of ["apps/website/src/counter.ts", "apps/website/src/assets", "apps/website/public/icons.svg"]) {
+      assert(!existsSync(join(target, gone)), `${gone} survived the prune`);
+    }
+    const page = read("apps/website/src/main.ts");
+    assert(page.includes("Split works"), "apps/website/src/main.ts does not carry the page marker the smoke reads");
+    // A frontend app has no test harness in this project, and `vp run -r` is what makes that a
+    // skip instead of a failure.
+    const app = readJson("apps/website/package.json");
+    assert(!app.scripts?.test, "apps/website must not define a test script");
+    assert(!app.scripts?.check, "apps/website must not define a check script (create-vite writes none)");
+    assert(!existsSync(join(target, "apps/website/tests")), "apps/website must not create tests/");
+    return "root is a server, apps/website is the page, app has no test/check script";
+  });
+
+  check("the Nitro server sits at the workspace root with no /api prefix", () => {
+    assert(existsSync(join(target, "server", "routes", "hello.ts")), "server/routes/hello.ts is missing");
+    assert(!existsSync(join(target, "server", "api")), "server/api/ exists — those routes are /api-prefixed");
+    const nitro = read("nitro.config.ts");
+    assert(/serverDir:\s*["']\.\/server["']/.test(nitro), "nitro.config.ts does not set serverDir: './server'");
+    assert(/output:\s*\{\s*dir:\s*["']dist["']/.test(nitro), "nitro.config.ts does not send the output to dist");
+    const config = read("vite.config.ts");
+    assert(/from\s+["']nitro\/vite["']/.test(config), "the root vite.config.ts does not import from nitro/vite");
+    const keys = config.match(/^ {2}plugins\s*:/gm) ?? [];
+    assert(keys.length === 1, `expected exactly one top-level plugins entry in the root vite.config.ts, found ${keys.length}`);
+    assert(/^ {2}plugins:\s*\[nitro\(\)\],$/m.test(config), "the root plugins array does not call nitro() — the server would be inert");
+    // Without this the workspace root refuses to act on itself: `vp dev`/`vp build` exit 1 with
+    // "needs a target package", which is the shape's loudest setup trap.
+    assert(/^ {2}defaultPackage:\s*["']\.["'],$/m.test(config), 'the root vite.config.ts does not set defaultPackage: "."');
+    return "server/routes/hello.ts, serverDir ./server, output dist, defaultPackage ., plugins [nitro()]";
+  });
+
+  check("every dependency version is shared through the workspace catalog", () => {
+    const workspace = read("pnpm-workspace.yaml");
+    for (const name of ["vite-plus", "typescript", "nitro", "vite-proxy-from-env"]) {
+      assert(
+        new RegExp(`^\\s+"?${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"?:`, "m").test(workspace),
+        `the workspace catalog has no ${name} entry`,
+      );
+    }
+    // One version per dependency, in one place: a literal spec in any manifest of the workspace is
+    // a version the other packages do not share, which is exactly what the catalog prevents.
+    const literals = [];
+    for (const [base, file] of splitPackages) {
+      const own = readJson(file);
+      for (const group of ["dependencies", "devDependencies"]) {
+        for (const [name, spec] of Object.entries(own[group] ?? {})) {
+          if (spec !== "catalog:" && !String(spec).startsWith("workspace:")) literals.push(`${base || "."}: ${name}@${spec}`);
+        }
+      }
+    }
+    assert(literals.length === 0, `version literals outside the catalog: ${literals.join(", ")}`);
+
+    // The catalog is only shared if it resolves shared: the same dependency must come out of every
+    // package that declares it.
+    const vitePlus = new Set(splitPackages.map(([base]) => resolvedVersion(base, "vite-plus")));
+    assert(vitePlus.size === 1, `vite-plus resolves to ${[...vitePlus].join(" and ")} across the workspace`);
+    if (existsSync(join(target, "packages/utils/node_modules/typescript"))) {
+      const typescript = new Set([resolvedVersion("apps/website", "typescript"), resolvedVersion("packages/utils", "typescript")]);
+      assert(typescript.size === 1, `typescript resolves to ${[...typescript].join(" and ")} across the workspace`);
+    }
+    return `${splitPackages.length} manifests, all catalog references; vite-plus ${[...vitePlus][0]}`;
+  });
+
+  check("the common commands are registered at the workspace root, all in vp form", () => {
+    // The workspace's operation is vp-only: no pnpm/npm/yarn/bun command may appear in any script
+    // of any package, because two sets of commands in one project is how the second one gets used
+    // by mistake. (The ephemeral `vp create` bootstrap is not a script — it is not part of the
+    // project's operation.)
+    const managers = [];
+    for (const [base, file] of splitPackages) {
+      const own = readJson(file);
+      for (const [name, script] of Object.entries(own.scripts ?? {})) {
+        if (/(^|[\s&|;(])(pnpm|npm|npx|yarn|bun|bunx)([\s&|;)]|$)/.test(String(script))) {
+          managers.push(`${base || "."}: ${name} -> ${script}`);
+        }
+      }
+    }
+    assert(managers.length === 0, `scripts that call a package manager: ${managers.join(", ")}`);
+    for (const name of ["dev:server", "dev:website", "check", "test", "build", "ready"]) {
+      const script = manifest.scripts?.[name];
+      assert(script, `the root manifest does not register \`${name}\``);
+      assert(/^vp\b/.test(script), `the root's \`${name}\` script is not vp-form: ${script}`);
+    }
+    assert(!manifest.scripts?.dev, "the scaffold's `dev` script (vp run website#dev) must be replaced in this shape");
+    assert(manifest.devDependencies?.nitro === "catalog:", `the root says nitro@${manifest.devDependencies?.nitro}`);
+    const nitroResolved = resolvedVersion(".", "nitro");
+    assert(
+      nitroResolved === answers.GUIDE_NITRO_VERSION,
+      `the root resolves nitro@${nitroResolved}, the decision was ${answers.GUIDE_NITRO_VERSION}`,
+    );
+    return `dev:server, dev:website, check, test, build, ready; nitro@${nitroResolved} via the catalog`;
+  });
+
+  check("the dev proxy lives in the frontend package with its guard", () => {
+    const config = read("apps/website/vite.config.ts");
+    assert(config.includes("proxyTransformer(env.DEV_PROXY)"), "apps/website/vite.config.ts does not use proxyTransformer(env.DEV_PROXY)");
+    assert(/if\s*\(\s*!env\.DEV_PROXY\s*\)/.test(config), "the DEV_PROXY guard line is missing from the app's config");
+    assert(!/command\s*===\s*["']serve["']/.test(config), "the guard is conditional on the dev command; it must fire in every mode");
+    const env = read("apps/website/.env");
+    assert(env.includes("DEV_PROXY"), "apps/website/.env has no DEV_PROXY");
+    assert(env.includes("'/api/'"), "the proxy prefix is not '/api/' — without the trailing slash /apix/... is proxied too");
+    assert(env.includes(`http://127.0.0.1:${answers.GUIDE_DEV_PORT}`), `apps/website/.env does not point at the root server on ${answers.GUIDE_DEV_PORT}`);
+    const app = readJson("apps/website/package.json");
+    assert(app.devDependencies?.["vite-proxy-from-env"] === "catalog:", "vite-proxy-from-env is not a catalog dependency of the app");
+    assert(existsSync(join(target, "apps/website/node_modules/vite-proxy-from-env")), "vite-proxy-from-env is not installed in apps/website");
+    return "proxy + guard in apps/website, target on the root server's port, pinned through the catalog";
+  });
+
+  check("the workspace build produced both halves", () => {
+    assert(existsSync(join(target, "dist", "server", "index.mjs")), "dist/server/index.mjs is missing — the root server did not build");
+    assert(existsSync(join(target, "dist", "nitro.json")), "dist/nitro.json is missing");
+    assert(!existsSync(join(target, ".output")), ".output/ exists — output.dir did not take effect");
+    assert(existsSync(join(target, "apps", "website", "dist", "index.html")), "apps/website/dist/index.html is missing — the app did not build");
+    if (answers.GUIDE_PLACEHOLDER === "yes") {
+      assert(existsSync(join(target, "packages", "utils", "package.json")), "GUIDE_PLACEHOLDER=yes but packages/utils is gone");
+      assert(
+        existsSync(join(target, "packages", "utils", "dist", "index.mjs")),
+        "packages/utils/dist/index.mjs is missing — the placeholder package did not build",
+      );
+    } else {
+      assert(!existsSync(join(target, "packages", "utils")), "GUIDE_PLACEHOLDER=no but packages/utils survives");
+      assert(!existsSync(join(target, "packages")), "GUIDE_PLACEHOLDER=no but packages/ was left behind");
+    }
+    return "root dist/server/index.mjs + dist/nitro.json, apps/website/dist, placeholder dist";
+  });
+}
+
+if (isSsr) {
   // The silent degradation of the SSR shape, and why its absence is the assertion: an
   // `index.html` is used as the renderer template, and if it has no `<!--ssr-outlet-->` comment
   // Nitro still detects the SSR entry, still logs it, and still serves the plain client shell
@@ -394,23 +607,48 @@ check("gitignore keeps .env and .vscode tracked, and build output ignored", () =
   const probe = mkdtempSync(join(tmpdir(), "gitignore-probe-"));
   try {
     execFileSync("git", ["init", "-q"], { cwd: probe });
-    copyFileSync(join(target, ".gitignore"), join(probe, ".gitignore"));
-    const result = execFileSync(
-      "git",
-      [
-        "check-ignore",
-        "--no-index",
-        "-v",
-        ".env",
-        ".env.local",
-        ".vscode/settings.json",
-        "dist/index.html",
-        "dist/server/index.mjs",
-        ".output/server/index.mjs",
-        "node_modules/x",
-      ],
-      { cwd: probe, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    ).trim();
+    // Every ignore file the project ships is copied to its own directory in the probe, because
+    // git resolves the rules per directory: a package's own `.gitignore` is what decides that
+    // package's paths, and copying only the root's would leave the package-level rules — which
+    // this guide edits — unasserted.
+    const copied = [];
+    const copyIgnores = (dir) => {
+      for (const entry of readdirSync(join(target, dir), { withFileTypes: true })) {
+        if (["node_modules", "dist", ".git", ".agents"].includes(entry.name)) continue;
+        const relative = dir ? `${dir}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) copyIgnores(relative);
+        else if (entry.name === ".gitignore") {
+          mkdirSync(join(probe, dir), { recursive: true });
+          copyFileSync(join(target, relative), join(probe, relative));
+          copied.push(relative);
+        }
+      }
+    };
+    copyIgnores("");
+    const probes = [
+      ".env",
+      ".env.local",
+      ".vscode/settings.json",
+      "dist/index.html",
+      "dist/server/index.mjs",
+      ".output/server/index.mjs",
+      "node_modules/x",
+      // In the split shape the committed environment file — the one carrying DEV_PROXY — lives in
+      // the frontend package, and the packages' own ignore files are what decide those paths.
+      ...(isSplit
+        ? [
+            "apps/website/.env",
+            "apps/website/.env.local",
+            "apps/website/dist/index.html",
+            "packages/utils/dist/index.mjs",
+          ]
+        : []),
+    ];
+    const result = execFileSync("git", ["check-ignore", "--no-index", "-v", ...probes], {
+      cwd: probe,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
     const ignored = new Set(
       result
         .split("\n")
@@ -427,7 +665,13 @@ check("gitignore keeps .env and .vscode tracked, and build output ignored", () =
     // why the guide relocates it: an ignore line for `.output` would mean the build output moved
     // out of the directory the rules already cover.
     assert(!ignored.has(".output/server/index.mjs"), ".output must NOT be ignored — the build output belongs in dist/");
-    return [...ignored].sort().join(" ");
+    if (isSplit) {
+      assert(!ignored.has("apps/website/.env"), "apps/website/.env must be committed — it carries DEV_PROXY");
+      assert(ignored.has("apps/website/.env.local"), "apps/website/.env.local must be ignored");
+      assert(ignored.has("apps/website/dist/index.html"), "apps/website/dist must be ignored");
+      assert(ignored.has("packages/utils/dist/index.mjs"), "packages/utils/dist must be ignored");
+    }
+    return `${copied.join(" ")} -> ${[...ignored].sort().join(" ")}`;
   } finally {
     rmSync(probe, { recursive: true, force: true });
   }
@@ -442,6 +686,9 @@ if (mode === "frontend") {
     const env = read(".env");
     assert(env.includes("DEV_PROXY"), ".env has no DEV_PROXY");
     assert(env.includes(answers.GUIDE_DEV_PROXY), `.env does not point at ${answers.GUIDE_DEV_PROXY}`);
+    // The prefix is a regular expression, so the trailing slash is what keeps /apix/... out of the
+    // proxy; without it the dev server proxies paths the production edge would not.
+    assert(env.includes("'/api/'"), "the proxy prefix is not '/api/' — without the trailing slash /apix/... is proxied too");
     assert(manifest.devDependencies?.["vite-proxy-from-env"] === "1.1.0", "vite-proxy-from-env is not pinned to 1.1.0");
     return "proxy + guard + pinned plugin";
   });
@@ -458,22 +705,31 @@ check("AGENTS.md keeps the tool-owned block and gains the project constraints", 
   const section = agents.slice(constraints);
   assert(section.includes("vp env doctor"), "the constraints section must correct the global-only `vp env doctor` advice");
   assert(section.includes("agent-notes") || section.includes("docs/"), "the constraints section does not point at docs/agent-notes.md");
-  // The mode-specific rules are the mode's own: a frontend project has no server to describe and
-  // a project with a server no dev proxy, so a section for another mode would be a wrong instruction.
+  // The profile-specific rules are the profile's own: a frontend project has no server to
+  // describe, a same-origin fullstack project no dev proxy, and a split project's proxy rules are
+  // the package-level ones — so a section for another profile would be a wrong instruction.
   assert(
     section.includes("### Server") === hasServer,
     hasServer ? "the constraints section does not describe the server" : "a frontend project has no server to describe",
   );
   assert(
-    section.includes("### Development proxy") === (mode === "frontend"),
-    mode === "frontend"
-      ? "the frontend constraints section does not describe the dev proxy"
-      : "only a frontend project has a dev proxy to describe",
+    section.includes("### Development proxy") === hasProxy,
+    hasProxy ? "the constraints section does not describe the dev proxy" : "this profile has no dev proxy to describe",
   );
-  if (mode === "fullstack") {
+  if (isSsr) {
     assert(
       section.includes("### Rendering (SSR)"),
-      "the fullstack constraints section does not describe the SSR shape",
+      "the SSR profile's constraints section does not describe the SSR shape",
+    );
+  }
+  if (isSplit) {
+    assert(
+      section.includes("### Workspace (monorepo)"),
+      "the split profile's constraints section does not describe the workspace rules",
+    );
+    assert(
+      section.includes("vp run -r"),
+      "the workspace rules do not say how cross-package commands are run",
     );
   }
   return `${agents.length} bytes`;
@@ -485,14 +741,17 @@ check("inherited ADRs land in docs/adr with the profile's set", () => {
   assert(files.some((f) => /^0001-.*\.md$/.test(f)), `no 0001-* ADR (found ${files.join(", ") || "nothing"})`);
   assert(files.some((f) => /^0002-.*\.md$/.test(f)), `no 0002-* ADR (found ${files.join(", ") || "nothing"})`);
   const hasServerAdr = files.some((f) => /^0003-.*\.md$/.test(f));
-  assert(hasServerAdr === hasServer, hasServer ? "a server mode must write the server-mode ADR" : "a pure frontend must not write the server ADR");
-  // The SSR shape's own ADR is the shape's, and only the shape's: a backend project would be told
-  // about files it deletes, which is the mode-filtering rule the whole document set follows.
-  const hasSsrAdr = files.some((f) => /^0004-.*\.md$/.test(f));
+  assert(hasServerAdr === hasServer, hasServer ? "a server profile must write the server-foundation ADR" : "a pure frontend must not write the server ADR");
+  // The shape's own ADR is the shape's, and only that shape's: the two fullstack shapes share a
+  // number and nothing else, and a backend project would be told about files it deletes — which is
+  // the profile-filtering rule the whole document set follows.
+  const shapeAdr = mode === "fullstack" ? (isSsr ? "0004-ssr-shape.md" : "0004-split-shape.md") : null;
+  const otherShapeAdr = isSsr ? "0004-split-shape.md" : "0004-ssr-shape.md";
   assert(
-    hasSsrAdr === (mode === "fullstack"),
-    mode === "fullstack" ? "the SSR shape must write its own ADR" : "only the SSR shape has no index.html to explain",
+    files.includes(shapeAdr ?? "") === (shapeAdr !== null),
+    shapeAdr ? `the ${isSsr ? "SSR" : "split"} shape must write its own ADR (found ${files.join(", ") || "nothing"})` : "no shape ADR belongs in this profile",
   );
+  assert(!files.includes(otherShapeAdr), `${otherShapeAdr} describes the other fullstack shape and must not be written here`);
   // How much structure an ADR carries is the author's call (the repo's ADR format treats the
   // extra sections as optional), so this only asserts they are real documents.
   for (const file of files) {
@@ -512,12 +771,21 @@ check("agent-notes.md records the known traps and is referenced from AGENTS.md",
     assert(/Nitro/i.test(notes), "agent-notes.md does not mention Nitro");
     assert(notes.includes(".output"), "agent-notes.md does not warn about Nitro's default .output/ directory");
     assert(!notes.includes("DEV_PROXY"), "a backend project has no dev proxy to record");
-  } else if (mode === "fullstack") {
+  } else if (isSsr) {
     assert(/Nitro/i.test(notes), "agent-notes.md does not mention Nitro");
     assert(notes.includes("ssr-outlet"), "agent-notes.md does not record the `<!--ssr-outlet-->` silent degradation");
     assert(notes.includes("entry-server"), "agent-notes.md does not record the SSR entry contract");
     assert(/hydrat/i.test(notes), "agent-notes.md does not say what is not verified about hydration");
     assert(!notes.includes("DEV_PROXY"), "the SSR shape has no dev proxy to record");
+  } else if (isSplit) {
+    assert(/Nitro/i.test(notes), "agent-notes.md does not mention Nitro");
+    assert(notes.includes(".output"), "agent-notes.md does not warn about Nitro's default .output/ directory");
+    assert(notes.includes("DEV_PROXY"), "agent-notes.md does not record the dev-proxy traps of this shape");
+    // The workspace's own traps, each one measured: they are the reason a monorepo's rules differ
+    // from a single project's.
+    assert(notes.includes("defaultPackage"), "agent-notes.md does not record that the root needs defaultPackage");
+    assert(/vp run -r/.test(notes), "agent-notes.md does not record the `-r` skip semantics");
+    assert(/catalog/.test(notes), "agent-notes.md does not record the workspace catalog");
   } else {
     assert(notes.includes("DEV_PROXY"), "agent-notes.md does not record the dev-proxy traps");
   }
@@ -535,12 +803,22 @@ check("provenance.md records resolved versions, the skills commit, and the choic
   assert(provenance.includes(answers.GUIDE_MODE), "provenance does not record the mode");
   assert(provenance.includes(answers.GUIDE_LAYOUT), "provenance does not record the layout");
   // A record that names a fact the project does not have is worse than no record: a project with a
-  // server must record the pin, and no project without a proxy may claim a proxy target.
+  // server must record the pin, and only a project with a proxy may claim a proxy target.
   if (hasServer) {
     assert(provenance.includes(answers.GUIDE_NITRO_VERSION), "provenance does not record the pinned nitro version");
-    assert(!/Dev proxy target/.test(provenance), "the provenance record claims a dev proxy in a project that has none");
-    if (mode === "fullstack") {
+    assert(!/Dev proxy target/.test(provenance), "the provenance record claims a proxy to someone else's backend");
+    if (isSsr) {
       assert(/SSR/.test(provenance), "provenance does not record that this project's shape is SSR");
+    }
+    if (isSplit) {
+      assert(provenance.includes("vite:monorepo"), "provenance does not record the monorepo scaffold template");
+      assert(/Placeholder package/.test(provenance), "provenance does not record the placeholder-package decision");
+      assert(provenance.includes("apps/website"), "provenance does not record where the frontend lives");
+      assert(
+        provenance.includes(`127.0.0.1:${answers.GUIDE_DEV_PORT}`),
+        "provenance does not record the proxy target (the root server's address)",
+      );
+      assert(!/no dev proxy/.test(provenance), "the split shape has a dev proxy; the record must not deny it");
     }
   } else {
     assert(provenance.includes("Dev proxy target"), "provenance does not record the dev proxy target");
@@ -587,6 +865,8 @@ check("the upstream-declared promoted skills are installed and the lockfile agre
 });
 
 check("build output exists and is not committed to the source tree", () => {
+  // The shape's primary artefact: the page in a pure frontend, the server bundle in every shape
+  // that has a server. The split shape's other outputs are asserted with its own checks above.
   const expected = mode === "frontend" ? join("dist", "index.html") : join("dist", "server", "index.mjs");
   assert(existsSync(join(target, expected)), `${expected} is missing — the verify build did not produce output`);
   return expected;
@@ -595,7 +875,7 @@ check("build output exists and is not committed to the source tree", () => {
 // -------------------------------------------------------------- reported set
 await Promise.all(pending);
 
-const covered = { frontend: ["single"], fullstack: ["single"], backend: ["single"] };
+const covered = { frontend: ["single"], fullstack: ["single", "monorepo"], backend: ["single"] };
 if (!covered[mode]?.includes(layout)) {
   failures.push(`no assertions are implemented for mode=${mode} layout=${layout}; add them before trusting a green run`);
 }

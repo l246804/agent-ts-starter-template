@@ -13,7 +13,8 @@
  *   ```bash guide:verify id=verify                    -> the assertion set; always last
  *
  * Extra attributes:
- *   when=mode:frontend|backend   include the step only when GUIDE_MODE matches
+ *   when=mode:frontend|backend        include the step only when GUIDE_MODE matches
+ *   when=mode:fullstack&layout:single every clause must match (one `|` alternative each)
  *
  * Anything else in the info string (a language tag, prose) is ignored, so blocks
  * without a `guide:` token document the guide without becoming steps.
@@ -129,15 +130,22 @@ function parseInfo(info) {
   return { kind, attrs };
 }
 
-/** when=mode:frontend|backend — one answer, an alternative per value. */
+/**
+ * when=mode:frontend|backend — one answer, an alternative per value.
+ * when=mode:fullstack&layout:single — one clause per `&`, and all of them must match: a mode can
+ * hold two shapes (fullstack is SSR in the `single` layout and split in the `monorepo` one), so a
+ * step that belongs to only one of them has to name both answers.
+ */
 function whenMatches(expr, answers) {
-  const colon = expr.indexOf(":");
-  if (colon < 0) fail(`bad when clause (expected key:value): ${expr}`);
-  const key = `GUIDE_${expr.slice(0, colon).toUpperCase()}`;
-  const alternatives = expr.slice(colon + 1).split("|");
-  const actual = answers[key];
-  if (actual === undefined) fail(`when clause references unanswered ${key}`);
-  return alternatives.includes(actual);
+  return expr.split("&").every((clause) => {
+    const colon = clause.indexOf(":");
+    if (colon < 0) fail(`bad when clause (expected key:value): ${clause}`);
+    const key = `GUIDE_${clause.slice(0, colon).toUpperCase()}`;
+    const alternatives = clause.slice(colon + 1).split("|");
+    const actual = answers[key];
+    if (actual === undefined) fail(`when clause references unanswered ${key}`);
+    return alternatives.includes(actual);
+  });
 }
 
 function requiredAnswers(body) {

@@ -33,15 +33,26 @@ non-zero at the first failure and prints where its logs went.
   proxy and no `.env`, and a build that emits the client bundle *and* `dist/server/_ssr/ssr.mjs`.
   The SSR verify block then follows the document's own `<script src>` and requires it to answer
   `200` with a javascript type, so "the server serves the client it renders" is asserted rather
-  than assumed.
+  than assumed. In the split profile the shape is checked the same way: the workspace root is the
+  server (no `index.html`, no `src/` there), `apps/website` is the frontend with the demo pruned
+  and no `check`/`test` script, `defaultPackage: "."` and `plugins: [nitro()]` are in the root
+  config, every dependency spec in every manifest is a `catalog:` reference resolving to one
+  version per dependency, no script in any package calls a package manager, the app's proxy and
+  its guard live in `apps/website`, and the workspace build produced the root's `dist/server`,
+  the app's `apps/website/dist` and the placeholder package's `packages/utils/dist`.
 - **A check that cannot fail is not a check.** The negative controls make the preflight refuse
   a non-empty target and an old Node (a `node` shim on `PATH` reports `v24.13.0`), make the
-  profile guard refuse an unimplemented profile, a backend project on a framework base, and an
-  SSR project on a plain base (all without writing anything), make the route-scan assertion
-  catch a test file planted next to the routes — a rule a freshly initialized project has no way
-  to violate, so it is made to fail on purpose — and make the verify block go red on a planted
-  type error, planted in `src/` for a frontend profile and in `server/` for a backend one, i.e.
-  where that profile's source lives. In the SSR profile two more controls keep the two layers
+  profile guard refuse an unimplemented profile, a backend project on a framework base, an
+  SSR project on a plain base, a split project on a base the monorepo template does not write,
+  and a monorepo without its placeholder answer (all without writing anything), make the
+  route-scan assertion catch a test file planted next to the routes — a rule a freshly
+  initialized project has no way to violate, so it is made to fail on purpose — and make the
+  verify block go red on a planted type error, planted in `src/` for a frontend profile and in
+  `server/` for a server one, i.e. where that profile's source lives. In the split profile a
+  further control removes `DEV_PROXY` from `apps/website/.env` and requires **both** halves of the
+  failure to be loud: the verify block must fail naming `DEV_PROXY` (it reaches the workspace build
+  first), and the app's dev server must refuse to start rather than come up and answer `/api/*`
+  with the app's HTML — the state the guard exists to make impossible. In the SSR profile two more controls keep the two layers
   honest: an `index.html` planted with no `<!--ssr-outlet-->` — the shape's silent degradation,
   where Nitro still detects and logs the SSR entry, `/` still answers `200` with the plain client
   shell, and the build quietly stops being an SSR build — must make verify fail naming the missing
@@ -49,8 +60,8 @@ non-zero at the first failure and prints where its logs went.
   so removing it from the rendered page makes verify fail on the marker, with the shape otherwise
   intact.
 - **Profiles are explicit.** A profile is a pre-answered answers file plus assertions;
-  `frontend/single`, `backend/single` and `fullstack/single` have both, and `assert.mjs` fails
-  rather than pass quietly for a profile it has no checks for.
+  `frontend/single`, `backend/single`, `fullstack/single` and `fullstack/monorepo` have both, and
+  `assert.mjs` fails rather than pass quietly for a profile it has no checks for.
 
 ## What it deliberately does not do
 
@@ -70,10 +81,10 @@ mechanical half; the guide is written for the half that needs judgement:
 - **Judgement inside the steps.** Every step is a deterministic script, but a step that fails
   is a report to read, not a script to tweak. The harness stops at exactly the same point the
   guide tells an agent to stop.
-- **Profiles that are not implemented yet.** `frontend/single`, `backend/single` and
-  `fullstack/single` have both a profile file and assertions. `assert.mjs` fails rather than pass
-  silently for any profile it has no checks for, so a `fullstack` run in another layout — or a
-  layout no profile covers — is a report, never a green run.
+- **Profiles that are not implemented yet.** `frontend/single`, `backend/single`,
+  `fullstack/single` and `fullstack/monorepo` have both a profile file and assertions. `assert.mjs`
+  fails rather than pass silently for any profile it has no checks for, so a `fullstack` run in
+  another layout — or a layout no profile covers — is a report, never a green run.
 
 ## Environment notes
 
@@ -108,4 +119,8 @@ mechanical half; the guide is written for the half that needs judgement:
   only mean the prefix was stripped. The server profiles need no stub: their own project serves
   the routes, and the smoke test starts both the dev server and the built server on
   `GUIDE_DEV_PORT` — in the SSR profile it asserts the rendered marker and the same-origin API on
-  that one port, which is what "no proxy" means.
+  that one port, which is what "no proxy" means. The split profile is the one that needs two of its
+  own servers at once — the workspace root server (`__FREE_PORT__`, which the guide also writes
+  into the app's `DEV_PROXY`) and the frontend app (`__FREE_PORT2__`) — and the smoke test reads
+  the app's port, so a `200` with the server's JSON there can only mean the proxy chain carried the
+  request and stripped the prefix.
