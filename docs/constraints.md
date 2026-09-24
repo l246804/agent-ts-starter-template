@@ -172,6 +172,9 @@
 
 - ⚠️ hydration 未在浏览器中验证；指南 verify 只断言"`/` 返回的 HTML 含服务端渲染标记"。
 - ⚠️ 构建产物必须被 `.gitignore` 覆盖，否则 `vp check`/`vp fmt` 会去格式化产物（机制：它们的文件集**来自 gitignore 规则**）。采用 #33 的 `dist` 输出时脚手架已自带该行；若保留默认 `.output` 则必须自行追加。
+- ⚠️ 后端形态的基座**固定为 `vanilla-ts`**：框架模板的 `vite.config.ts` 自带 `plugins`（react-ts 是 `lazyPlugins(() => [react()])`），而这条路径本来就要把客户端删掉，留着只会多一层要拆的东西。指南在 profile-guard 处直接拒绝其他基座，不进入后面任何一步。
+- ⚠️ 设了 `output: { dir: "dist" }` 之后**不要再设 Vite 自己的 `build.outDir`**：Nitro 插件已经把 client 构建指到自己的 public 目录，显式 `build.outDir` 会被登记成又一份 public assets 源，于是 Nitro 把自己的产物再拷进自己（`dist/public/public/**`，且能通过 `/public/…` 访问），全程 exit 0。
+- ✅ 后端单仓形态已端到端验证（`e2e/run.sh --profile backend-single`）：无全局 CLI（harness 用一个只会失败的 `vp` 挡在 PATH 最前面）、插件有可访问路由、`/api` 前缀不存在、产物在 `dist/` 且构建后静态检查仍绿、Nitro 版本显式钉住、`tests/` 在路由扫描目录之外。决策与取舍见 ADR-0007。
 - ⚠️ 目标目录必须**完全为空**（`vp create` 拒绝非空目录，也不接受已有的 `.git`）。
 - ⚠️ SSR 两种形状都实测可行；**探针推荐 B（删 `index.html`）**，因为 A 缺 `<!--ssr-outlet-->` 会**静默**退化为纯客户端壳（SSR 入口照样被探测、照样打日志，`/` 返回纯客户端壳，无警告、exit 0）。Q19 待用户确认。
 - ⚠️ 形状不可混用：整文档入口 + 带 outlet 的模板 ⇒ 文档被忽略、body 被塞进模板（嵌套 `<html>`）。

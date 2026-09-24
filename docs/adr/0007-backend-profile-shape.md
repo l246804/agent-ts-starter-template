@@ -7,7 +7,9 @@ one `tsconfig.json` extending `nitro/tsconfig`, and `tests/` + `.gitkeep` with a
 test runner (`vp test --passWithNoTests`). The client is generated and thrown away because the
 application base is the only base whose scripts (`dev`/`build`/`preview`) and tsconfig shape are
 already the ones a server uses; what a backend project needs from the scaffold is the *project*,
-not the page.
+not the page. The base is not a free choice: the profile guard refuses any other template before a
+file is written, because a framework base writes its own `plugins` array and dependencies that a
+backend project would only have to unpick.
 
 This supersedes the `.output` consequence of ADR-0004 (the composition verdict of that ADR is
 unchanged): Nitro's production output is `dist/`, the directory create-vite's `.gitignore` already
@@ -36,19 +38,22 @@ default `.output/` is not ignored by those rules, and both commands take their f
 
 ## Consequences
 
-- The profile's steps are mode-gated in `GUIDE.md` (`when=mode:backend`), and so are the
-  mode-specific halves of `AGENTS.md`, `docs/agent-notes.md`, the inherited server ADR and the
+- The profile's steps are mode-gated in `GUIDE.md` (`when=mode:backend`, or an alternative list
+  such as `when=mode=backend|fullstack` where the trap applies to every server mode), and so are
+  the mode-specific halves of `AGENTS.md`, `docs/agent-notes.md`, the inherited server ADR and the
   provenance record: a frontend run must not describe a server, and a backend run must not
   describe a dev proxy.
 - The plugin registration is asserted on the artefact, not on the patch: the scaffold writes no
   `plugins` key, so an import without a call exits 0 and serves nothing (the worst failure shape
   in this composition). The verify block then proves it behaviourally — a route answered by the
   dev server, and the built `dist/server/index.mjs` started and queried.
-- Two installs happen in a backend run (`vp create`'s own, then the pinned `nitro`): the pin is an
-  exact prerelease written into the manifest as JSON, because the exact spec is the contract — a
-  save that normalised it to a range would look the same in `package.json` and resolve somewhere
-  else later. (`pnpm add -D nitro@3.0.260903-beta` was measured to save the exact spec; the other
-  managers are not what this decision rides on.)
+- A backend run installs dependencies three times: `vp create`'s own, the shared install step, and
+  the one that picks up the pinned `nitro`. That is the cost of the phase order — skeleton, shared
+  install, mode-specific server — and merging the last two would make the shared install step
+  mode-aware. The pin itself is an exact prerelease written into the manifest as JSON, because the
+  exact spec is the contract: a save that normalised it to a range would look the same in
+  `package.json` and resolve somewhere else later. (`pnpm add -D nitro@3.0.260903-beta` was
+  measured to save the exact spec; the other managers are not what this decision rides on.)
 - `vp test` prints a ~10 s `close timed out` warning once the plugin is wired (exit 0). It is
   recorded in the generated project's `agent-notes.md` rather than filtered out.
 - The E2E harness's `--profile backend-single` asserts the artefacts of these decisions (client

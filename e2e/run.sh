@@ -15,7 +15,8 @@
 #      not make (file tree, document placement, skills lockfile agreement)
 #   6. runs the negative controls: the preflight must refuse a non-empty target and an old
 #      Node, the profile guard must refuse an unimplemented answer without writing anything,
-#      and the verify block must go red on a planted type error.
+#      the route-scan assertion must catch a test file planted next to the routes, and the
+#      verify block must go red on a planted type error.
 #
 # What it is NOT: a replacement for an agent reading GUIDE.md. The guide's decision
 # points are pre-answered here, and the parts that need judgement are listed in
@@ -54,6 +55,10 @@ mkdir -p "$TARGET" "$CACHE/npm" "$CACHE/xdg" "$CACHE/pnpm-home" "$LOGS"
 export npm_config_cache="$CACHE/npm"
 export XDG_CACHE_HOME="$CACHE/xdg"
 export PNPM_HOME="$CACHE/pnpm-home"
+
+# The machine's own PATH, kept because every step after the preflight runs with a poisoned one
+# (see run_plan).
+MACHINE_PATH="$PATH"
 
 say() { printf '\n\033[1m▸ %s\033[0m\n' "$*"; }
 die() { printf '\n\033[1;31mSTOP: %s\033[0m\n' "$*" >&2; exit 1; }
@@ -101,6 +106,21 @@ run_plan() {
     grep -q "$(printf '\t')exec$(printf '\t')$required$(printf '\t')" "$PLAN/plan.tsv" \
       || die "the harness depends on a plan step named $required"
   done
+  # The guide's first promise is that the run depends on no global CLI: the toolchain is the
+  # project's own devDependency. That promise is enforced here rather than assumed — this machine
+  # has a global Vite+, and it would happily stand in for the project-local one (it delegates to
+  # it, measured). So every step except the preflight, whose whole job is to report the machine as
+  # it really is, runs with a `vp` that refuses to work first on PATH: a step that reached for the
+  # global toolchain fails loudly instead of passing on a binary the project does not own.
+  # `pnpm dlx` is unaffected because it runs the binary of the package it downloaded, not the one
+  # on PATH (measured before relying on it).
+  local poison="$RUN_DIR/poison-bin"
+  mkdir -p "$poison"
+  printf '#!/usr/bin/env bash\necho "this step reached for a bare global vp; the guide must use ./node_modules/.bin/vp" >&2\nexit 1\n' \
+    > "$poison/vp"
+  chmod +x "$poison/vp"
+  export PATH="$poison:$PATH"
+
   while IFS=$'\t' read -r n kind id payload destination; do
     case "$kind" in
       file)
@@ -110,7 +130,9 @@ run_plan() {
         ;;
       exec|verify)
         printf '  %s  %-6s %s\n' "$n" "$kind" "$id"
-        if ! (cd "$TARGET" && bash "$PLAN/$payload") > "$LOGS/$n-$id.log" 2>&1; then
+        local step_path="$PATH"
+        if [ "$id" = "preflight" ]; then step_path="$MACHINE_PATH"; fi
+        if ! (cd "$TARGET" && PATH="$step_path" bash "$PLAN/$payload") > "$LOGS/$n-$id.log" 2>&1; then
           echo
           tail -30 "$LOGS/$n-$id.log"
           die "step $n ($kind $id) failed — the guide stops here, it does not repair itself (full log: $LOGS/$n-$id.log)"
@@ -138,11 +160,31 @@ negative_controls() {
   guard=$(awk -F'\t' '$2 == "exec" && $3 == "profile-guard" { print $4 }' "$PLAN/plan.tsv")
   [ -n "$preflight" ] && [ -n "$verify" ] && [ -n "$guard" ] || die "the plan is missing the preflight, profile-guard or verify step"
 
+  # A guard that cannot fail is not a guard. The route-scan rule ("tests never live under
+  # server/routes/ or server/api/, where Nitro compiles every file into a route") has nothing to
+  # catch in a freshly initialized project — the guide writes no test file — so it is made to
+  # fail here, on purpose, and has to name the rule.
+  if [ -d "$TARGET/server/routes" ]; then
+    say "negative control: the route-scan check catches a test next to the routes"
+    local planted_route="$TARGET/server/routes/__e2e_probe.test.ts"
+    printf 'export const probe = true;\n' > "$planted_route"
+    if node "$E2E_DIR/assert.mjs" --target "$TARGET" --answers "$ANSWERS_FILE" > "$LOGS/neg-route-scan.log" 2>&1; then
+      rm -f "$planted_route"
+      die "assert.mjs accepted a test file inside server/routes/ — the route-scan guard cannot fail"
+    fi
+    rm -f "$planted_route"
+    grep -q 'compiled into routes' "$LOGS/neg-route-scan.log" || {
+      tail -5 "$LOGS/neg-route-scan.log"
+      die "assert.mjs failed with the planted test file, but not on the route scan (see $LOGS/neg-route-scan.log)"
+    }
+    echo "  refused, and named the route scan (see $LOGS/neg-route-scan.log)"
+  fi
+
   say "negative control: preflight refuses a non-empty target"
   local dirty="$RUN_DIR/negative/non-empty-target"
   mkdir -p "$dirty"
   echo "already here" > "$dirty/keep-me.txt"
-  if (cd "$dirty" && bash "$PLAN/$preflight") > "$LOGS/neg-non-empty.log" 2>&1; then
+  if (cd "$dirty" && PATH="$MACHINE_PATH" bash "$PLAN/$preflight") > "$LOGS/neg-non-empty.log" 2>&1; then
     cat "$LOGS/neg-non-empty.log"
     die "preflight accepted a non-empty target directory"
   fi
@@ -161,7 +203,7 @@ if [ "\$1" = "--version" ] || [ "\$1" = "-v" ]; then echo "v24.13.0"; exit 0; fi
 exec "$(command -v node)" "\$@"
 FAKE
   chmod +x "$fake_bin/node"
-  if (cd "$old_target" && PATH="$fake_bin:$PATH" bash "$PLAN/$preflight") > "$LOGS/neg-old-node.log" 2>&1; then
+  if (cd "$old_target" && PATH="$fake_bin:$MACHINE_PATH" bash "$PLAN/$preflight") > "$LOGS/neg-old-node.log" 2>&1; then
     cat "$LOGS/neg-old-node.log"
     die "preflight accepted Node $(node --version) pretending to be v24.13.0"
   fi

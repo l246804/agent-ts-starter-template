@@ -1,5 +1,10 @@
 # Compose Vite+ and Nitro Vite+-first, not Nitro-first
 
+> Status: **superseded in part by [ADR-0007](0007-backend-profile-shape.md)**. Nitro's production
+> output is `dist/` (`output: { dir: "dist" }`), which the scaffold's ignore rules already cover,
+> so `.output` is *not* added to `.gitignore` — the "must be added" consequence below is out of
+> date. The composition verdict of this ADR (Vite+-first, no migration step) is unchanged.
+
 The 全栈 and 后端 形态 build their server side on Nitro v3 as a Vite plugin (`nitro/vite`) added to a project Vite+ already created (`vp create`) — rather than scaffolding with Nitro's own `create-nitro-app` and migrating Vite+ in. Nitro's documentation never mentions Vite+ (zero hits), and a stock Nitro starter hard-fails `vp build` until `vp migrate` runs, so this integration is undocumented and had to be proven empirically. It was, end to end: `vp check` 0, `vp test` 0, `vp dev` serving both the client page and `/api/hello`, `vp build` emitting `.output/` with client and Nitro phases, and `node .output/server/index.mjs` serving both.
 
 ## Considered Options

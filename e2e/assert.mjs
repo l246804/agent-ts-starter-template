@@ -232,11 +232,15 @@ if (mode === "backend") {
       spec === answers.GUIDE_NITRO_VERSION,
       `package.json says nitro@${spec}, the decision was ${answers.GUIDE_NITRO_VERSION}`,
     );
+    // The repo's ADR-0003 fixes Nitro v3, and v3 has no stable release: a pin that had drifted
+    // off the 3.x prerelease line would mean the decision record and the project disagree.
+    assert(/^3\.\d/.test(spec), `ADR-0003 fixes Nitro v3; the pin is ${spec}`);
+    assert(/-(beta|alpha|rc)/i.test(spec), `Nitro v3 is prerelease-only; ${spec} does not look like one`);
     const resolved = JSON.parse(
       readFileSync(join(target, "node_modules", "nitro", "package.json"), "utf8"),
     ).version;
     assert(resolved === answers.GUIDE_NITRO_VERSION, `node_modules/nitro resolved to ${resolved}`);
-    return `nitro@${resolved} (prerelease, pinned)`;
+    return `nitro@${resolved} (v3 prerelease, pinned)`;
   });
 
   // The silent failure this catches: the scaffold writes no `plugins` key at all, so an import
@@ -286,10 +290,11 @@ if (mode === "backend") {
   });
 
   check("the build output is Nitro's dist, not the unignored .output", () => {
-    assert(existsSync(join(target, "dist", "server", "index.mjs")), "dist/server/index.mjs is missing");
+    // The build itself (dist/server/index.mjs) is asserted by the generic build-output check
+    // below, which every profile runs; this one is about where Nitro put it.
     assert(existsSync(join(target, "dist", "nitro.json")), "dist/nitro.json is missing");
     assert(!existsSync(join(target, ".output")), ".output/ exists — output.dir did not take effect");
-    return "dist/server/index.mjs, dist/nitro.json, no .output/";
+    return "dist/nitro.json, no .output/";
   });
 }
 

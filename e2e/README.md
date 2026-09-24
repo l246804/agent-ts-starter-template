@@ -30,9 +30,10 @@ non-zero at the first failure and prints where its logs went.
 - **A check that cannot fail is not a check.** The negative controls make the preflight refuse
   a non-empty target and an old Node (a `node` shim on `PATH` reports `v24.13.0`), make the
   profile guard refuse an unimplemented profile and a backend project on a framework base (both
-  without writing anything), and make the verify block go red on a planted type error — planted
-  in `src/` for a frontend profile and in `server/` for a backend one, i.e. where that profile's
-  source lives.
+  without writing anything), make the route-scan assertion catch a test file planted next to the
+  routes — a rule a freshly initialized project has no way to violate, so it is made to fail on
+  purpose — and make the verify block go red on a planted type error, planted in `src/` for a
+  frontend profile and in `server/` for a backend one, i.e. where that profile's source lives.
 - **Profiles are explicit.** A profile is a pre-answered answers file plus assertions;
   `frontend/single` and `backend/single` have both, and `assert.mjs` fails rather than pass
   quietly for a profile it has no checks for.
@@ -79,7 +80,16 @@ mechanical half; the guide is written for the half that needs judgement:
   and it does not happen in a standalone directory.
 - **Network is required**: the scaffold, the dependencies, and the skills are fetched from the
   npm registry and GitHub at run time.
-- **Ports**: the harness picks a free port for the dev server and starts a deterministic
-  proxy target (`e2e/stub-backend.mjs`) on another. That stub is what makes the proxy
-  assertion meaningful: it serves `/hello` and 404s everything else, so a `200` on
-  `/api/hello` through the dev server can only mean the prefix was stripped.
+- **A global `vp` cannot be what the run uses.** From the second step onwards (the preflight
+  reports the machine as it really is, global Vite+ included), the harness puts a `vp` that
+  refuses to work first on `PATH`. The guide's promise is that everything runs through the
+  project's own toolchain; with this in place, a step that reached for the global one fails
+  loudly instead of passing on a binary the project does not own. `pnpm dlx` is unaffected — it
+  runs the binary of the package it downloaded, not the one on `PATH`, which was measured before
+  relying on it.
+- **Ports**: the harness picks a free port for the dev server, and for a profile whose answers
+  name a proxy target (`__STUB_PORT__` in the profile file) it starts a deterministic stand-in
+  (`e2e/stub-backend.mjs`) on another. That stub is what makes the proxy assertion meaningful: it
+  serves `/hello` and 404s everything else, so a `200` on `/api/hello` through the dev server can
+  only mean the prefix was stripped. The backend profile needs no stub: its own project serves
+  the route, and the smoke test starts both the dev server and the built server on `GUIDE_DEV_PORT`.

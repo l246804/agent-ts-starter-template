@@ -48,9 +48,10 @@ combinations from producing a half-built project.
   the wording is the deliverable, not something to improvise.
 - A fenced block marked **`guide:verify`** is the verification step. It is the assertion set
   for the whole initialization: run it as-is, and treat a red result as a stop.
-- A step whose marker carries a **`when=…`** clause belongs to one answer only: `when=mode:backend`
-  is a step for a backend project, `when=mode:frontend` for a frontend one. Every step without one
-  applies to the mode you are initializing.
+- A step whose marker carries a **`when=…`** clause belongs to the answers it names and is skipped
+  otherwise: `when=mode:backend` is a step for backend projects, and an alternative list such as
+  `when=mode=backend|fullstack` covers either of those modes. Every step without one applies to
+  the mode you are initializing.
 - Blocks **without** a `guide:` marker are explanation and examples.
 
 The E2E harness in `e2e/` extracts exactly these markers and runs them from an empty
@@ -667,8 +668,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 const file = "vite.config.ts";
 const before = readFileSync(file, "utf8");
 if (/plugins\s*:/.test(before)) {
-  console.error("vite.config.ts already has a plugins entry; this step expects the vanilla-ts base");
-  console.error("(a framework template ships its own plugins array — re-run with GUIDE_FRAMEWORK=vanilla-ts)");
+  // Reached only if the file is not the one this step expects — the patch below would otherwise
+  // add a second `plugins` key, and a duplicated key is the silent-inert failure again.
+  console.error("vite.config.ts already has a plugins entry, so this step would add a second one");
   process.exit(1);
 }
 const head = "export default defineConfig({";
@@ -1316,6 +1318,10 @@ cat >> docs/agent-notes.md <<'NOTES'
   which the ignore rules do not cover — `vp fmt` and `vp check` take their file set from those
   rules and would fail on the build's own artefacts. The output directory is emptied on every
   build, so never keep anything else in `dist/`.
+- Do not also set Vite's `build.outDir`: the plugin already points the client build at Nitro's
+  public directory, and an explicit `build.outDir` is registered as one more public-assets
+  source, so Nitro copies its own output into itself (`dist/public/public/**`, served under
+  `/public/…`). The build still exits 0 while it happens.
 - Remove a stale `.output/` if one ever appears: `vp preview` and `nitro preview` resolve the
   output directory through `node_modules/.nitro/last-build.json`, which a fresh clone does not
   have, and fall back to serving `.output/` silently.
