@@ -5,8 +5,10 @@
 `GUIDE.md` is this repo's only product: a guide an agent executes inside an empty directory.
 It carries machine-extractable step markers (`guide:exec`, `guide:file`, `guide:verify`), and
 `bash e2e/run.sh` extracts and runs them from scratch — the guide's own verify block is the
-assertion set. Run it after changing `GUIDE.md`; it needs network and takes minutes. See
-`e2e/README.md` for what the harness does and does not prove.
+assertion set. Run it after changing `GUIDE.md`; it needs network and takes minutes. It has two
+supported profiles, `--profile frontend-single` and `--profile backend-single`; a change to the
+guide is only proven when both have been run. See `e2e/README.md` for what the harness does and
+does not prove.
 
 ## Agent skills
 

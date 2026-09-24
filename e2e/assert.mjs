@@ -215,6 +215,84 @@ if (mode === "frontend") {
   });
 }
 
+// ------------------------------------------------------------------ the server
+if (mode === "backend") {
+  check("the backend profile has no client", () => {
+    const survivors = ["src", "public", "index.html"].filter((name) => existsSync(join(target, name)));
+    assert(survivors.length === 0, `${survivors.join(", ")} survived the prune — a backend project has no client`);
+    assert(existsSync(join(target, "package.json")), "the prune took package.json with it");
+    return "src/, public/, index.html absent";
+  });
+
+  check("nitro is pinned to the decided prerelease and installed", () => {
+    const spec = manifest.devDependencies?.nitro;
+    assert(spec, "nitro is not in devDependencies");
+    assert(!String(spec).includes("latest"), `nitro is unpinned: ${spec}`);
+    assert(
+      spec === answers.GUIDE_NITRO_VERSION,
+      `package.json says nitro@${spec}, the decision was ${answers.GUIDE_NITRO_VERSION}`,
+    );
+    const resolved = JSON.parse(
+      readFileSync(join(target, "node_modules", "nitro", "package.json"), "utf8"),
+    ).version;
+    assert(resolved === answers.GUIDE_NITRO_VERSION, `node_modules/nitro resolved to ${resolved}`);
+    return `nitro@${resolved} (prerelease, pinned)`;
+  });
+
+  // The silent failure this catches: the scaffold writes no `plugins` key at all, so an import
+  // without a call exits 0 while every route 404s. The verify block catches it behaviourally;
+  // this catches it in the artefact, where the cause is visible.
+  check("the Nitro plugin is registered, not merely imported", () => {
+    const config = read("vite.config.ts");
+    assert(/from\s+["']nitro\/vite["']/.test(config), "vite.config.ts does not import from nitro/vite");
+    const keys = config.match(/plugins\s*:/g) ?? [];
+    assert(keys.length === 1, `expected exactly one plugins entry in vite.config.ts, found ${keys.length}`);
+    assert(/plugins:\s*\[nitro\(\)\]/.test(config), "the plugins array does not call nitro() — the server would be inert");
+    return "plugins: [nitro()]";
+  });
+
+  check("the server sits at the project root and its routes carry no /api prefix", () => {
+    assert(existsSync(join(target, "server", "routes", "hello.ts")), "server/routes/hello.ts is missing");
+    assert(!existsSync(join(target, "server", "api")), "server/api/ exists — those routes are /api-prefixed");
+    const nitro = read("nitro.config.ts");
+    assert(/serverDir:\s*["']\.\/server["']/.test(nitro), "nitro.config.ts does not set serverDir: './server'");
+    assert(/output:\s*\{\s*dir:\s*["']dist["']/.test(nitro), "nitro.config.ts does not send the output to dist");
+    const tsconfig = readTsconfig("tsconfig.json");
+    assert(tsconfig.extends === "nitro/tsconfig", `tsconfig.json extends ${JSON.stringify(tsconfig.extends)}`);
+    for (const included of ["server", "tests"]) {
+      assert((tsconfig.include ?? []).includes(included), `tsconfig.json does not include ${included}`);
+    }
+    return "server/routes/hello.ts, serverDir ./server, output dist, one tsconfig program";
+  });
+
+  check("tests/ is generated with its placeholder and stays out of the route scan", () => {
+    assert(existsSync(join(target, "tests", ".gitkeep")), "tests/.gitkeep is missing");
+    const script = manifest.scripts?.test;
+    assert(
+      script === "vp test --passWithNoTests",
+      `the test script is ${JSON.stringify(script)}, expected "vp test --passWithNoTests"`,
+    );
+    const strays = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.(test|spec)\./.test(entry.name)) strays.push(full.slice(target.length + 1));
+      }
+    };
+    if (existsSync(join(target, "server"))) walk(join(target, "server"));
+    assert(strays.length === 0, `test files under server/ would be compiled into routes: ${strays.join(", ")}`);
+    return "tests/.gitkeep + wired runner, none under server/";
+  });
+
+  check("the build output is Nitro's dist, not the unignored .output", () => {
+    assert(existsSync(join(target, "dist", "server", "index.mjs")), "dist/server/index.mjs is missing");
+    assert(existsSync(join(target, "dist", "nitro.json")), "dist/nitro.json is missing");
+    assert(!existsSync(join(target, ".output")), ".output/ exists — output.dir did not take effect");
+    return "dist/server/index.mjs, dist/nitro.json, no .output/";
+  });
+}
+
 // ------------------------------------------------------------------ gitignore
 check("gitignore keeps .env and .vscode tracked, and build output ignored", () => {
   const probe = mkdtempSync(join(tmpdir(), "gitignore-probe-"));
@@ -223,7 +301,18 @@ check("gitignore keeps .env and .vscode tracked, and build output ignored", () =
     copyFileSync(join(target, ".gitignore"), join(probe, ".gitignore"));
     const result = execFileSync(
       "git",
-      ["check-ignore", "--no-index", "-v", ".env", ".env.local", ".vscode/settings.json", "dist/index.html", "node_modules/x"],
+      [
+        "check-ignore",
+        "--no-index",
+        "-v",
+        ".env",
+        ".env.local",
+        ".vscode/settings.json",
+        "dist/index.html",
+        "dist/server/index.mjs",
+        ".output/server/index.mjs",
+        "node_modules/x",
+      ],
       { cwd: probe, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     ).trim();
     const ignored = new Set(
@@ -236,7 +325,12 @@ check("gitignore keeps .env and .vscode tracked, and build output ignored", () =
     assert(ignored.has(".env.local"), ".env.local must be ignored");
     assert(!ignored.has(".vscode/settings.json"), ".vscode must not be ignored");
     assert(ignored.has("dist/index.html"), "dist/ must be ignored");
+    assert(ignored.has("dist/server/index.mjs"), "the server build output under dist/ must be ignored too");
     assert(ignored.has("node_modules/x"), "node_modules/ must be ignored");
+    // Nitro's default output directory is not covered by the scaffold's rules, which is exactly
+    // why the guide relocates it: an ignore line for `.output` would mean the build output moved
+    // out of the directory the rules already cover.
+    assert(!ignored.has(".output/server/index.mjs"), ".output must NOT be ignored — the build output belongs in dist/");
     return [...ignored].sort().join(" ");
   } finally {
     rmSync(probe, { recursive: true, force: true });
@@ -268,6 +362,15 @@ check("AGENTS.md keeps the tool-owned block and gains the project constraints", 
   const section = agents.slice(constraints);
   assert(section.includes("vp env doctor"), "the constraints section must correct the global-only `vp env doctor` advice");
   assert(section.includes("agent-notes") || section.includes("docs/"), "the constraints section does not point at docs/agent-notes.md");
+  // The mode-specific rules are the mode's own: a frontend project has no server to describe and
+  // a backend project no dev proxy, so a section for the other mode would be a wrong instruction.
+  if (mode === "backend") {
+    assert(section.includes("### Server"), "the backend constraints section does not describe the server");
+    assert(!section.includes("### Development proxy"), "a backend project has no dev proxy to describe");
+  } else {
+    assert(section.includes("### Development proxy"), "the frontend constraints section does not describe the dev proxy");
+    assert(!section.includes("### Server"), "a frontend project has no server to describe");
+  }
   return `${agents.length} bytes`;
 });
 
@@ -294,6 +397,13 @@ check("agent-notes.md records the known traps and is referenced from AGENTS.md",
   assert(notes.includes("vp check"), "agent-notes.md does not mention the check/build split");
   assert(/traps|limits|known/i.test(notes), "agent-notes.md does not present itself as a traps list");
   assert(read("AGENTS.md").includes("agent-notes.md"), "AGENTS.md does not point at docs/agent-notes.md");
+  if (mode === "backend") {
+    assert(/Nitro/i.test(notes), "agent-notes.md does not mention Nitro");
+    assert(notes.includes(".output"), "agent-notes.md does not warn about Nitro's default .output/ directory");
+    assert(!notes.includes("DEV_PROXY"), "a backend project has no dev proxy to record");
+  } else {
+    assert(notes.includes("DEV_PROXY"), "agent-notes.md does not record the dev-proxy traps");
+  }
   return `${notes.split("\n").length} lines`;
 });
 
@@ -307,6 +417,15 @@ check("provenance.md records resolved versions, the skills commit, and the choic
   assert(provenance.includes(answers.GUIDE_PM), "provenance does not record the package manager");
   assert(provenance.includes(answers.GUIDE_MODE), "provenance does not record the mode");
   assert(provenance.includes(answers.GUIDE_LAYOUT), "provenance does not record the layout");
+  // A record that names a fact the project does not have is worse than no record: a backend run
+  // must not claim a dev proxy target, and a frontend run must not claim a server foundation.
+  if (mode === "backend") {
+    assert(provenance.includes(answers.GUIDE_NITRO_VERSION), "provenance does not record the pinned nitro version");
+    assert(!/Dev proxy target/.test(provenance), "the provenance record claims a dev proxy in a project that has none");
+  } else {
+    assert(provenance.includes("Dev proxy target"), "provenance does not record the dev proxy target");
+    assert(!/nitro@/.test(provenance), "the provenance record claims a server in a project that has none");
+  }
   return `${provenance.split("\n").length} lines`;
 });
 
@@ -348,14 +467,15 @@ check("the upstream-declared promoted skills are installed and the lockfile agre
 });
 
 check("build output exists and is not committed to the source tree", () => {
-  assert(existsSync(join(target, "dist", "index.html")), "dist/index.html is missing — the verify build did not produce output");
-  return "dist/index.html";
+  const expected = mode === "backend" ? join("dist", "server", "index.mjs") : join("dist", "index.html");
+  assert(existsSync(join(target, expected)), `${expected} is missing — the verify build did not produce output`);
+  return expected;
 });
 
 // -------------------------------------------------------------- reported set
 await Promise.all(pending);
 
-const covered = { frontend: ["single"], fullstack: [], backend: [] };
+const covered = { frontend: ["single"], fullstack: [], backend: ["single"] };
 if (!covered[mode]?.includes(layout)) {
   failures.push(`no assertions are implemented for mode=${mode} layout=${layout}; add them before trusting a green run`);
 }

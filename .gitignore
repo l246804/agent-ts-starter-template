@@ -3,3 +3,9 @@ e2e/.work/
 
 # Local research scratch (facts packs, spikes, probe logs).
 .scratch/
+
+# pnpm's content-addressable store. Any pnpm command run anywhere inside this repo resolves
+# its store to the repo root, and the harness's commands (including the pnpm in the target
+# under e2e/.work/) are no exception: measured, `pnpm store path` reports
+# <repo>/.pnpm-store/v11 and neither npm_config_store_dir nor its kebab-case form moves it.
+.pnpm-store/

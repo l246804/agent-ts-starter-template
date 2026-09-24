@@ -23,13 +23,19 @@ non-zero at the first failure and prints where its logs went.
   file tree, where the documents landed, the ignore rules (probed with `git check-ignore` in a
   throwaway repository so the target need not be one), the alias mechanism, the dev-proxy
   wiring, and the installed skill set compared against the upstream manifest re-resolved at
-  assertion time.
+  assertion time. In the backend profile it also checks what that mode's silent failures look
+  like at the artefact level: the client is gone, `nitro()` is called in a `plugins` array
+  rather than merely imported, the routes live outside `server/api/`, `tests/` is outside the
+  route scan, and the build output is `dist/` with no `.output/` beside it.
 - **A check that cannot fail is not a check.** The negative controls make the preflight refuse
-  a non-empty target and an old Node (a `node` shim on `PATH` reports `v24.13.0`) without
-  writing anything, and make the verify block go red on a planted type error.
-- **Profiles are explicit.** A profile is a pre-answered answers file plus assertions; only
-  `frontend/single` has both today, and `assert.mjs` fails rather than pass quietly for a
-  profile it has no checks for.
+  a non-empty target and an old Node (a `node` shim on `PATH` reports `v24.13.0`), make the
+  profile guard refuse an unimplemented profile and a backend project on a framework base (both
+  without writing anything), and make the verify block go red on a planted type error — planted
+  in `src/` for a frontend profile and in `server/` for a backend one, i.e. where that profile's
+  source lives.
+- **Profiles are explicit.** A profile is a pre-answered answers file plus assertions;
+  `frontend/single` and `backend/single` have both, and `assert.mjs` fails rather than pass
+  quietly for a profile it has no checks for.
 
 ## What it deliberately does not do
 
@@ -49,15 +55,18 @@ mechanical half; the guide is written for the half that needs judgement:
 - **Judgement inside the steps.** Every step is a deterministic script, but a step that fails
   is a report to read, not a script to tweak. The harness stops at exactly the same point the
   guide tells an agent to stop.
-- **Profiles that are not implemented yet.** Only `frontend/single` has a profile file and
-  assertions. `assert.mjs` fails rather than pass silently for any profile it has no checks
-  for.
+- **Profiles that are not implemented yet.** `frontend/single` and `backend/single` have both a
+  profile file and assertions. `assert.mjs` fails rather than pass silently for any profile it
+  has no checks for, so a `fullstack` run — or a layout no profile covers — is a report, never
+  a green run.
 
 ## Environment notes
 
 - **Caches are localized.** The harness points npm, pnpm and XDG caches inside the work
   directory, so it can run where `$HOME` is not writable (CI sandboxes) without mutating the
-  machine.
+  machine. One cache it cannot move: pnpm resolves its content-addressable store to the root of
+  the repository it runs in, so a `<repo>/.pnpm-store/` appears and is ignored by `.gitignore`.
+  The guide itself does not depend on any of this.
 - **The target gets its own git repository** right after the guide's bootstrap step. Vite+'s
   file discovery is gitignore-driven, and this harness runs the target inside this repository's
   work tree, which ignores `e2e/.work/`; a project nested in a repository that ignores it looks

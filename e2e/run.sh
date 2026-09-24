@@ -13,8 +13,9 @@
 #      here — and reports its exit code
 #   5. runs e2e/assert.mjs for the external-behaviour checks the guide itself does
 #      not make (file tree, document placement, skills lockfile agreement)
-#   6. runs the negative controls: the preflight must refuse a non-empty target and
-#      an old Node, and the verify block must go red on a planted type error.
+#   6. runs the negative controls: the preflight must refuse a non-empty target and an old
+#      Node, the profile guard must refuse an unimplemented answer without writing anything,
+#      and the verify block must go red on a planted type error.
 #
 # What it is NOT: a replacement for an agent reading GUIDE.md. The guide's decision
 # points are pre-answered here, and the parts that need judgement are listed in
@@ -131,10 +132,11 @@ run_plan() {
 }
 
 negative_controls() {
-  local preflight verify
+  local preflight verify guard
   preflight=$(awk -F'\t' '$2 == "exec" && $3 == "preflight" { print $4 }' "$PLAN/plan.tsv")
   verify=$(awk -F'\t' '$2 == "verify" { print $4 }' "$PLAN/plan.tsv")
-  [ -n "$preflight" ] && [ -n "$verify" ] || die "the plan is missing the preflight or verify step"
+  guard=$(awk -F'\t' '$2 == "exec" && $3 == "profile-guard" { print $4 }' "$PLAN/plan.tsv")
+  [ -n "$preflight" ] && [ -n "$verify" ] && [ -n "$guard" ] || die "the plan is missing the preflight, profile-guard or verify step"
 
   say "negative control: preflight refuses a non-empty target"
   local dirty="$RUN_DIR/negative/non-empty-target"
@@ -166,13 +168,36 @@ FAKE
   [ -z "$(ls -A "$old_target")" ] || die "preflight wrote files before rejecting the Node version"
   echo "  refused, and wrote nothing"
 
+  say "negative control: the profile guard refuses an answer no profile implements"
+  # The guard is the guide's "stop before writing" edge, so both halves of it are exercised: a
+  # profile that does not exist, and a base template a backend project cannot prune. Each must
+  # fail without writing anything into the (empty) target it is pointed at.
+  if (cd "$old_target" && GUIDE_MODE=fullstack GUIDE_LAYOUT=single bash "$PLAN/$guard") > "$LOGS/neg-guard-profile.log" 2>&1; then
+    cat "$LOGS/neg-guard-profile.log"
+    die "the profile guard accepted mode=fullstack"
+  fi
+  if (cd "$old_target" && GUIDE_MODE=backend GUIDE_LAYOUT=single GUIDE_FRAMEWORK=react-ts bash "$PLAN/$guard") > "$LOGS/neg-guard-framework.log" 2>&1; then
+    cat "$LOGS/neg-guard-framework.log"
+    die "the profile guard accepted a backend project on the react-ts base"
+  fi
+  [ -z "$(ls -A "$old_target")" ] || die "the profile guard wrote into the target it refused"
+  grep -q 'vanilla-ts' "$LOGS/neg-guard-framework.log" || die "the framework refusal does not name the base it wants"
+  echo "  refused fullstack, and refused backend + react-ts, naming vanilla-ts"
+
   say "negative control: the verify block goes red on a planted type error"
-  printf 'export const planted: number = "not a number";\n' > "$TARGET/src/__e2e_planted.ts"
+  # The plant goes where this profile's source lives: a frontend has src/, a backend has server/
+  # (its client is pruned), and a profile with neither is a plan this control does not know.
+  local plant_dir
+  if [ -d "$TARGET/src" ]; then plant_dir=src; elif [ -d "$TARGET/server" ]; then plant_dir=server; else
+    die "cannot plant a type error: neither src/ nor server/ exists in $TARGET"
+  fi
+  local planted="$TARGET/$plant_dir/__e2e_planted.ts"
+  printf 'export const planted: number = "not a number";\n' > "$planted"
   if (cd "$TARGET" && bash "$PLAN/$verify") > "$LOGS/neg-verify-red.log" 2>&1; then
-    rm -f "$TARGET/src/__e2e_planted.ts"
+    rm -f "$planted"
     die "the verify block passed with a type error in the project — green is not meaningful"
   fi
-  rm -f "$TARGET/src/__e2e_planted.ts"
+  rm -f "$planted"
   echo "  verify failed as it must (see $LOGS/neg-verify-red.log)"
 }
 
