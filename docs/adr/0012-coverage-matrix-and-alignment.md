@@ -3,7 +3,7 @@
 本条把"覆盖"从**人工判断**变成**可执行的断言**，并补上矩阵里最后一格：
 
 - **覆盖矩阵补全**：占位子包决策此前只有"两条分支各被跑过一次"（`backend-monorepo` 取 `yes`、`frontend-monorepo` 取 `no`），三个 monorepo arrangement × 两条分支的**乘积**没有跑满。现在补上三个 profile：`fullstack-monorepo-placeholder-no`、`backend-monorepo-placeholder-no`、`frontend-monorepo-placeholder-yes`，于是每个 arrangement 的两支都有一次完整运行；`--self-check` 也把这条要求变成断言（每个 guard 接受的 (形态, 布局) 至少一个 profile，每个 monorepo arrangement 的 `GUIDE_PLACEHOLDER` 两个答案都有 profile，每条发货行至少被一个 profile 选中）。
-- **逐条对齐（两个方向都是断言）**：`docs/constraints.md` 的编号项（`C1..C41`）与边界项（`B1..B28`）、加上仓库里的继承 ADR，构成**条目空间**；`e2e/coverage.mjs` 声明"每条 → 目标项目哪个文档的哪一节、哪一形态、哪段 marker"。`assert.mjs` 逐 profile 断言两件事：**无遗漏**（每条发货行的 marker 都在它声明的位置）与**无编造**（目标文档里的每条 bullet 都被某条发货行认领）。形态过滤（`when`）在**两个方向里**都生效，所以"按形态裁剪"是证明出来的，而不是假设的。
+- **逐条对齐（两个方向都是断言）**：`docs/constraints.md` 的编号项（`C1..C41`）与边界项（`B1..B27`）、加上仓库里的继承 ADR，构成**条目空间**；`e2e/coverage.mjs` 声明"每条 → 目标项目哪个文档的哪一节、哪一形态、哪段 marker"。`assert.mjs` 逐 profile 断言两件事：**无遗漏**（每条发货行的 marker 都在它声明的位置）与**无编造**（目标文档里的每条 bullet 都被某条发货行认领）。形态过滤（`when`）在**两个方向里**都生效，所以"按形态裁剪"是证明出来的，而不是假设的。
 - **全矩阵记录**：`bash e2e/matrix.sh` 顺序跑完 `e2e/profiles/` 里的每个 profile，`e2e/record.mjs` 用**运行自己的产物**（`result.env`、run log、产物 `docs/provenance.md`）重写 `docs/verification.md`；任一 profile 不是 `PASS`，命令就非零退出、记录照实写"not run / FAIL"。
 - **上游漂移清单**：`docs/upstream-drift.md` 逐面给出"钉住了什么 / 漂移先看哪个可观察量 / 跑什么能证明"，把 `GUIDE.md` 的 Further Notes 里那半句话落成可执行的入口。
 
@@ -22,8 +22,8 @@
 ## Consequences
 
 - **条目空间是完整的、可审计的**：`--self-check` 要求每个 `C*`/`B*` 要么有发货行、要么在 `NOT_SHIPPED` 里给出"去哪了"（guide 步骤 / 验证记录 / 只留本仓库）与理由；两边都出现或都不出现都红。ADR 也在空间里：`ADR-0001/0002/0003/0004/0005/0007/0008/0009/0010/0011` 各自是至少一条发货句的来源（`ADR-0006` 与 `ADR-0012` 声明为只留本仓库）。检查的粒度也不止 bullet：目标文档里的**每一条 prose 段**与**每个标题**同样要在表里被认领，所以往已发货的节里加一句话而不是加 bullet，同样会红。
-- **对齐练习暴露了三处缺口，按"补条目"而不是"删文本"处理**：skills 的安装语义（新 `C40`）、skills 来源记录（新 `C41`）、工作区根作为应用时的根程序（新 `B28`）。这三条本来就是实测结论（`docs/research/mattpocock-skills-install.md` 与 workspace 的实测），只是此前没有被编号；现在它们和其它条目一样有落点与断言。
+- **对齐练习暴露了三处缺口，按"补条目"而不是"删文本"处理**：skills 的安装语义（新 `C40`）、skills 来源记录（新 `C41`）、工作区根作为应用时的根程序（新 `B27`）。这三条本来就是实测结论（`docs/research/mattpocock-skills-install.md` 与 workspace 的实测），只是此前没有被编号；现在它们和其它条目一样有落点与断言。
 - **每个 profile 的断言数增加一条**，报告形如 `48 source items landed (88 rows), 67 shipped bullets claimed`（数字随形态不同；`items` 是去重后的条目数，`rows` 是发货行数，两者不同——一行可以覆盖两条 bullet，一条 bullet 也可以有两个来源）；`run.sh` 在跑第一步之前先跑 `--self-check`（毫秒级），所以表的漂移在完整运行之前就红。
 - **`assert.mjs` 原有的按形态文档断言保留**：它们断言的是**结构**（某一节在不在、某个包名不该出现），新检查断言的是**内容对账**；两者互补，前者仍然先红、更好读。
-- **`docs/verification.md` 是生成物**：生成者是 `e2e/record.mjs`，入口是 `e2e/matrix.sh`；它同时是 `B8..B12`（"某形态已端到端验证"）的落点，因此那些 ✅ 条目不再是口头声明。
+- **`docs/verification.md` 是生成物**：生成者是 `e2e/record.mjs`，入口是 `e2e/matrix.sh`；它同时是 `B7..B11`（"某形态已端到端验证"）的落点，因此那些 ✅ 条目不再是口头声明。
 - **未验证的部分照旧写进记录与指南**：`GUIDE_TNB=yes`、非 pnpm 包管理器、非 react-ts 的 SSR 基座、非 vanilla-ts 的 monorepo 应用基座、`GUIDE_TRACKER=other`。记录里有一节"What this record does not prove"，`docs/upstream-drift.md` 给出它们的前置条件与重验入口。

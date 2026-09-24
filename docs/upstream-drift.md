@@ -45,14 +45,14 @@
 
 ### `create-vite`
 
-- **钉住的东西**：C7（TS 版本替换）、B1（`react-ts` 的 `lazyPlugins`）、B6（后端基座 `vanilla-ts`）、B5（`.gitignore`）、SSR 步骤对 `src/`/`index.html` 的删改、`src/main.ts` 的入口名。
+- **钉住的东西**：C7（TS 版本替换）、B1（`react-ts` 的 `lazyPlugins`）、B5（后端基座 `vanilla-ts`）、B4（`.gitignore`）、SSR 步骤对 `src/`/`index.html` 的删改、`src/main.ts` 的入口名。
 - **漂移信号**：脚手架不再写 `lazyPlugins`（Nitro 的注册位置换了）；`index.html` 或 `src/main.ts` 改名/移位；`.gitignore` 不再包含 `dist`（那会让 `vp check` 去格式化构建产物）；tsconfig 从两个 project-reference 变成一个。
 - **重验**：`frontend-single`（react-ts，含 `lazyPlugins` 断言）+ `fullstack-monorepo`（vanilla-ts 应用）。
 - **注意**：create-vite **不可钉住**（`vp create` 内部解析 `create-vite@latest`），所以它是唯一"每次全矩阵都可能变"的输入；漂移的第一手记录是出生证明里的 create-vite 版本行 —— 它读 `vp create` 的输出，读不到时读 resolver 留下的 dlx cache（`${XDG_CACHE_HOME:-~/.cache}/pnpm/dlx/*/*/node_modules/.pacquet/create-vite@*/…`，实测 `9.2.1`），两处都读不到时**明说**读不到，而不是留空。证据：`docs/research/vite-plus-create.md`。
 
 ### `nitro` v3
 
-- **钉住的东西**：C5（插件必须被**调用**）、C9/C10（路由扫描与 `tests/`）、C25（dev 端口 3000）、C27（无自动导入）、C33（`output.dir` 与 `.output` 回退）、B7（不要设 Vite 的 `build.outDir`）、B16–B21（SSR 契约、指纹、警告）、B23（`vp test` 收尾）。
+- **钉住的东西**：C5（插件必须被**调用**）、C9/C10（路由扫描与 `tests/`）、C25（dev 端口 3000）、C27（无自动导入）、C33（`output.dir` 与 `.output` 回退）、B6（不要设 Vite 的 `build.outDir`）、B15–B20（SSR 契约、指纹、警告）、B22（`vp test` 收尾）。
 - **漂移信号**：v3 出稳定版（`latest` 不再是预发布——那时 C2 的措辞要改）；`serverDir` 默认值变化；SSR 入口契约变化（`export default { fetch }`）、`?assets=client|ssr` 的查询名变化、内置 renderer 需要模板；`_ssr/` 指纹变化；`defineHandler` 的导出面变化；dev 端口不再由 Nitro 决定。
 - **重验**：六个有服务端的 profile（上表最后一列），其中 SSR 的两个反向控制（种 `index.html`、移除渲染标记）必须仍然红在各自的点上。
 - **证据**：`docs/research/nitro-v3.md`、`docs/research/nitro-dist-output.md`。
@@ -67,9 +67,9 @@
 
 ### `skills` CLI 与 `mattpocock/skills`
 
-- **钉住的东西**：C40、C41；Phase 4 的"运行时解析名单 → 安装 → 校验 lockfile"；Phase 4.5 的 `setup-flow`（技能的种子模板、`## Agent skills` 块、`disable-model-invocation`）；B3（GitHub 阻塞边陷阱）。
+- **钉住的东西**：C40、C41；Phase 4 的"运行时解析名单 → 安装 → 校验 lockfile"；Phase 4.5 的 `setup-flow`（技能的种子模板、`## Agent skills` 块、`disable-model-invocation`）。
 - **漂移信号**：`--skill` 的语法被修好（等号写法不再静默装全部）或再次变化；lockfile 结构变化（出现 revision 字段）；上游 manifest 的位置（`.claude-plugin/plugin.json`）或"晋升集合"的语义变化；技能被改名/拆并（简报与陷阱段会跟着变）；setup 技能的种子文件名变化（`issue-tracker-*.md`、`triage-labels.md`、`domain.md`）。
-- **重验**：任意一个 profile 的 skills 步（lockfile 名字集合 == 上游 manifest 名单）+ `frontend-single`（`yes` 分支：种子、brief、约定、GitHub 陷阱）。
+- **重验**：任意一个 profile 的 skills 步（lockfile 名字集合 == 上游 manifest 名单）+ `frontend-single`（`yes` 分支：种子、brief、约定）。
 - **注意**：名单**故意不冻结**在本仓库（用户故事 29–31），所以上游新增技能是**预期行为**，不是漂移；漂移是"名字集合的解析方式"或语义变化。证据：`docs/research/mattpocock-skills-install.md`。
 
 ### `vite-proxy-from-env` 与 `vite`

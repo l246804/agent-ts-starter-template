@@ -56,7 +56,6 @@ const SELECTORS = {
   "backend-single": (p) => p.mode === "backend" && p.layout === "single",
   "frontend-monorepo": (p) => p.mode === "frontend" && p.layout === "monorepo",
   "backend-monorepo": (p) => p.mode === "backend" && p.layout === "monorepo",
-  setup: (p) => p.setup === "yes",
 };
 
 /** The answers a row's selectors read, derived from a profile's GUIDE_* answers. */
@@ -66,7 +65,6 @@ export function answersOf(answers) {
   return {
     mode,
     layout,
-    setup: answers.GUIDE_SETUP,
     shape:
       mode === "fullstack" && layout === "single"
         ? "ssr"
@@ -153,7 +151,7 @@ const AGENTS = {
     ["C5", "backend-single", "registered in the `plugins` array of"],
     ["C36", "backend-single", "Routes are files under `server/routes/`"],
     ["C33", "server", "the directory the ignore rules already cover"],
-    ["B5", "server", "the directory the ignore rules already cover"],
+    ["B4", "server", "the directory the ignore rules already cover"],
     ["C27", "server", "Server code imports explicitly (`nitro`, `nitro/h3`, `nitro/types`)"],
     ["C33", "server&single", "The production artefact is the built bundle"],
     ["C5", "ssr", "registered inside the scaffold's `lazyPlugins` array"],
@@ -165,11 +163,11 @@ const AGENTS = {
   ],
   "Rendering (SSR)": [
     ["ADR-0008", "ssr", "The page is rendered by `src/entry-server.tsx`"],
-    ["B14", "ssr", "There is deliberately **no `index.html`**"],
+    ["B13", "ssr", "There is deliberately **no `index.html`**"],
     ["ADR-0008", "ssr", "the `<!--ssr-outlet-->` comment inside it is the only channel"],
-    ["B16", "ssr", "The SSR entry default-exports an object with a `fetch` method"],
-    ["B17", "ssr", "`environments.client.build.rollupOptions.input` names"],
-    ["B18", "ssr", "The SSR entry is the catch-all"],
+    ["B15", "ssr", "The SSR entry default-exports an object with a `fetch` method"],
+    ["B16", "ssr", "`environments.client.build.rollupOptions.input` names"],
+    ["B17", "ssr", "The SSR entry is the catch-all"],
   ],
   "Workspace (monorepo)": [
     ["C25", "mono-server", "`defaultPackage: \".\"` in the root `vite.config.ts` is what lets"],
@@ -209,7 +207,7 @@ const NOTES = {
     ["ADR-0011", "all", "shipped text cannot name a path this run decides", "prose"],
   ],
   "Two engines, one green light": [
-    ["B25", "all", "type-checks with the TypeScript Go engine"],
+    ["B24", "all", "type-checks with the TypeScript Go engine"],
     ["C4", "all", "reports formatting problems"],
     ["C15", "all", "only type-checks when `lint.options.typeAware` and `typeCheck`"],
   ],
@@ -224,8 +222,8 @@ const NOTES = {
     ["C1", "all", "`vite-plus` is a devDependency, never a global install"],
   ],
   "Package managers": [
-    ["B27", "all", "declares its package manager in `devEngines`"],
-    ["B26", "all", "under `CI=1` uses a frozen lockfile"],
+    ["B26", "all", "declares its package manager in `devEngines`"],
+    ["B25", "all", "under `CI=1` uses a frozen lockfile"],
     ["C2", "all", "Do not move `vite-plus` with a package-manager update"],
   ],
   "Skills and setup": [
@@ -233,10 +231,6 @@ const NOTES = {
     ["C40", "all", "Exit codes lie here"],
     ["C41", "all", "records content hashes, not a commit"],
     ["C13", "all", "exits 1 when it finds no test files"],
-  ],
-  "The issue tracker (GitHub)": [
-    ["B3", "setup", "Read blocking edges with"],
-    ["B3", "setup", "do not patch that generated file"],
   ],
   "The development proxy": [
     ["C36", "frontend-single", "is read from `.env` by `loadEnv(mode, process.cwd(), \"\")`"],
@@ -254,34 +248,34 @@ const NOTES = {
     ["B1", "server", "adding a second top-level `plugins` key instead"],
     ["C33", "server", "Production output is `dist/`"],
     ["C33", "server", "The output directory is emptied on every build"],
-    ["B7", "server", "Do not also set Vite's `build.outDir`"],
+    ["B6", "server", "Do not also set Vite's `build.outDir`"],
     ["C33", "server", "Remove a stale `.output/` if one ever appears"],
     ["C27", "server", "v3 has no auto-imports"],
     ["C25", "server", "The dev server's default port comes from Nitro"],
     ["C33", "server", "The production artefact is `node dist/server/index.mjs`"],
-    ["B23", "server", "close timed out after 10000ms"],
+    ["B22", "server", "close timed out after 10000ms"],
   ],
   "One program, and who checks it": [
-    ["B19", "server&single", "The build script's `tsc` only checks what the tsconfig `include` lists"],
+    ["B18", "server&single", "The build script's `tsc` only checks what the tsconfig `include` lists"],
   ],
   "No client": [
     ["ADR-0007", "mode-backend", "There is no client build phase in this project"],
     ["ADR-0007", "mode-backend", "`/` answers `404`"],
   ],
   "Rendering (SSR)": [
-    ["B14", "ssr", "There is no `index.html` on purpose"],
-    ["B20", "ssr", "`dist/server/_ssr/ssr.mjs` next to a"],
+    ["B13", "ssr", "There is no `index.html` on purpose"],
+    ["B19", "ssr", "`dist/server/_ssr/ssr.mjs` next to a"],
     ["ADR-0008", "ssr", "The template channel is a silent switch"],
     ["ADR-0008", "ssr", "The render marker"],
-    ["B16", "ssr", "The SSR entry's contract is `export default { fetch(request) }`"],
-    ["B17", "ssr", "must name `src/entry-client.tsx`"],
-    ["B17", "ssr", "assembled from two asset lists"],
-    ["B20", "ssr", "The SSR bundle lands in `dist/server/_ssr/ssr.mjs`"],
-    ["B20", "ssr", "exists only in an SSR build, which is the cheap way"],
-    ["B19", "ssr", "One tsconfig covers both halves"],
-    ["B18", "ssr", "The SSR entry is the catch-all route"],
-    ["B21", "ssr", "warns on `export default {` in the SSR entry"],
-    ["B4", "ssr", "Hydration is **not verified**"],
+    ["B15", "ssr", "The SSR entry's contract is `export default { fetch(request) }`"],
+    ["B16", "ssr", "must name `src/entry-client.tsx`"],
+    ["B16", "ssr", "assembled from two asset lists"],
+    ["B19", "ssr", "The SSR bundle lands in `dist/server/_ssr/ssr.mjs`"],
+    ["B19", "ssr", "exists only in an SSR build, which is the cheap way"],
+    ["B18", "ssr", "One tsconfig covers both halves"],
+    ["B17", "ssr", "The SSR entry is the catch-all route"],
+    ["B20", "ssr", "warns on `export default {` in the SSR entry"],
+    ["B3", "ssr", "Hydration is **not verified**"],
   ],
   "The workspace": [
     ["ADR-0010", "mono", "The workspace root is a package of the workspace"],
@@ -298,7 +292,7 @@ const NOTES = {
   ],
   "The workspace root as an application": [
     ["C25", "mono-server", "note on the command that runs"],
-    ["B28", "mono-server", "The root's TypeScript program is the scaffold's `tsconfig.json`"],
+    ["B27", "mono-server", "The root's TypeScript program is the scaffold's `tsconfig.json`"],
     ["C23", "mono-server", "Deleting a package is not enough"],
   ],
   "The development proxy (apps/website)": [
@@ -346,36 +340,36 @@ export const NOT_SHIPPED = {
   C30: { where: "repo", why: "orchestrator behaviour kept as a maintenance trap for this repository's own runs" },
   C32: { where: "repo", why: "expected noise from vp pack; no shipped shape packs a library" },
   B2: { where: "guide", marker: "vp create vite:monorepo", why: "a step-ordering fact about the guide, not a project rule" },
-  B6: { where: "guide", marker: "require_vanilla_base", why: "the profile guard refuses the base before anything is written" },
-  B8: {
+  B5: { where: "guide", marker: "require_vanilla_base", why: "the profile guard refuses the base before anything is written" },
+  B7: {
     where: "verification",
     marker: "\\| `backend-single` \\|(?:[^|]*\\|){3} \\*\\*PASS\\*\\*",
     why: "an end-to-end verification record: the row for this profile has to be PASS",
   },
-  B9: {
+  B8: {
     where: "verification",
     marker: "\\| `fullstack-single` \\|(?:[^|]*\\|){3} \\*\\*PASS\\*\\*",
     why: "an end-to-end verification record: the row for this profile has to be PASS",
   },
-  B10: {
+  B9: {
     where: "verification",
     marker: "\\| `fullstack-monorepo` \\|(?:[^|]*\\|){3} \\*\\*PASS\\*\\*",
     why: "an end-to-end verification record: the row for this profile has to be PASS",
   },
-  B11: {
+  B10: {
     where: "verification",
     marker: "\\| `backend-monorepo` \\|(?:[^|]*\\|){3} \\*\\*PASS\\*\\*",
     why: "an end-to-end verification record: the row for this profile has to be PASS",
   },
-  B12: {
+  B11: {
     where: "verification",
     marker: "\\| `frontend-monorepo` \\|(?:[^|]*\\|){3} \\*\\*PASS\\*\\*",
     why: "an end-to-end verification record: the row for this profile has to be PASS",
   },
-  B13: { where: "guide", marker: "completely empty", why: "a preflight rule; the guide refuses a non-empty target" },
-  B15: { where: "guide", marker: "ssr-outlet", why: "the shape decision ships as the SSR rules; the mixing trap is why the template stays deleted" },
-  B22: { where: "repo", why: "a guide-internal assertion detail" },
-  B24: { where: "guide", marker: "tsBuildInfoFile", why: "the cache file is placed by the guide; the shipped note is the ignore rule it belongs to" },
+  B12: { where: "guide", marker: "completely empty", why: "a preflight rule; the guide refuses a non-empty target" },
+  B14: { where: "guide", marker: "ssr-outlet", why: "the shape decision ships as the SSR rules; the mixing trap is why the template stays deleted" },
+  B21: { where: "repo", why: "a guide-internal assertion detail" },
+  B23: { where: "guide", marker: "tsBuildInfoFile", why: "the cache file is placed by the guide; the shipped note is the ignore rule it belongs to" },
   // The ADR half of the item space: every ADR is either the source of a shipped row or declared
   // here as a decision that stays in this repository.
   "ADR-0006": { where: "repo", why: "the guide's own test decision: its verify block is the assertion set" },
@@ -639,6 +633,12 @@ export function selfCheck(repoRoot) {
     if (!p.some((answers) => answers.mode === mode && answers.layout === layout)) {
       failures.push(`the profile guard implements ${arm}, which no profile file runs`);
     }
+  }
+  // The setup decision point's two branches are proved by profiles too. No shipped row is keyed on
+  // the answer any more, so the `yes` branch is asserted here instead of being implied by a row's
+  // shape filter.
+  if (![...profiles.values()].some((answers) => answers.GUIDE_SETUP === "yes")) {
+    failures.push("no profile answers GUIDE_SETUP=yes — the setup flow's yes branch has never been run");
   }
   for (const [mode, layout] of new Set(p.filter((a) => a.layout === "monorepo").map((a) => [a.mode, a.layout]))) {
     const answers = new Set(

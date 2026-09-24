@@ -184,7 +184,7 @@
 
 ### 逐条对齐（机器可查）
 
-本清单的每条（编号项 `C1..C41`、边界项 `B1..B28`）与仓库里的继承 ADR（`ADR-0001..`）一起构成**条目空间**；每条要么在 `e2e/coverage.mjs` 里有「发货行」（目标项目某文档的某一节、某种形态、一个 marker），要么在该文件的 `NOT_SHIPPED` 里声明不发货的去处（指南步骤 / 验证记录 / 只留本仓库）。两个方向都由 harness 断言：
+本清单的每条（编号项 `C1..C41`、边界项 `B1..B27`）与仓库里的继承 ADR（`ADR-0001..`）一起构成**条目空间**；每条要么在 `e2e/coverage.mjs` 里有「发货行」（目标项目某文档的某一节、某种形态、一个 marker），要么在该文件的 `NOT_SHIPPED` 里声明不发货的去处（指南步骤 / 验证记录 / 只留本仓库）。两个方向都由 harness 断言：
 
 - **无遗漏**：每条发货行的 marker 必须出现在它声明的文档与节里（`assert.mjs`，逐 profile 跑）；
 - **无编造**：目标项目文档里的**每一个块**必须被某条发货行认领——bullet、prose 段、标题都算（同一断言的反方向，同一次运行里检查），所以往已发货的节里加一句散文同样会红；
@@ -196,7 +196,6 @@
 
 - ⚠️ **react-ts 脚手架的 `plugins` 是 `lazyPlugins(() => [react()])`**：Nitro 必须插进那个数组里（`lazyPlugins(() => [nitro(), react()])`）。若另起一个顶层 `plugins:` 键，JS 重复键会让 **Nitro 被静默丢弃**（与"只加 import 不调用"同一类失败）。
 - ⚠️ monorepo 里不要再 `vp create` 生成 `apps/website`（脚手架已自带）：会报 `The --git/--no-git options are not available when adding a package to an existing monorepo`。
-- ⚠️ **仅当 setup 选用了 GitHub tracker**：目标项目里生成的 `docs/agents/issue-tracker.md` 来自 setup 技能的种子模板，其中的 `issue_dependencies_summary.blocked_by` **不是** `gh issue view --json` 的有效字段名（实测 gh 2.100.0 报 `Unknown JSON field`）。读阻塞边走 `gh api repos/<owner>/<repo>/issues/<n> --jq .issue_dependencies_summary` 或 `gh issue view <n> --json blockedBy`。**不要修补那个生成的文件**——技能重跑会用陈旧种子再生成一遍，修补会被静默丢弃；把这条写进 `docs/agent-notes.md`。（上游报告：mattpocock/skills#1118）
 
 - ⚠️ hydration 未在浏览器中验证（无浏览器）；SSR profile 的 verify 只断言 `/` 返回的 HTML 含**服务端渲染标记**（骨架页的 `<h1>SSR works</h1>`）、文档引用了客户端入口（`entry-client`），以及同源 `/api/hello` 返回 JSON。纯客户端壳恰好是 `200` + 空 `#root`，所以状态码不是证据。
 - ⚠️ 构建产物必须被 `.gitignore` 覆盖，否则 `vp check`/`vp fmt` 会去格式化产物（机制：它们的文件集**来自 gitignore 规则**）。采用 #33 的 `dist` 输出时脚手架已自带该行；若保留默认 `.output` 则必须自行追加。

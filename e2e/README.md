@@ -90,10 +90,9 @@ actually happened, and exits non-zero unless every profile passed.
   `frontend-single` answers `yes` — with a GitHub tracker and a convention whose ADR directory is
   not the guide's default — and the other eight answer `no`. So one end-to-end run proves the flow's
   writes (the skill's seed files, the `## Agent skills` brief in `AGENTS.md`), the ADR landing point
-  that comes out of the convention, the tracker-conditional trap in `docs/agent-notes.md`, and the
-  provenance sentence that records the convention as the source; the other eight prove the deferred
-  branch (no `docs/agents/`, no brief, no tracker trap, the default landing point recorded as an
-  assumption). The controls then prove what no single pass can: the guard refuses a `yes` whose
+  that comes out of the convention, and the provenance sentence that records the convention as the
+  source; the other eight prove the deferred branch (no `docs/agents/`, no brief, the default landing
+  point recorded as an assumption). The controls then prove what no single pass can: the guard refuses a `yes` whose
   questions were never answered and the one answer no step can write (`other`, the user's own
   paragraph); the landing point follows a *planted* convention that disagrees with the answer — in
   the shape the skill's own seed writes, path then annotation, and in the annotation-only

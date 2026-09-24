@@ -2424,8 +2424,7 @@ picks the branch.
   decision — and **write** the files. It must not overwrite document sections that already exist:
   the `## Agent skills` block is updated in place when the file has one and nothing above or below
   it is rewritten. The `docs/agents/` files are the skill's generated output, so — as that skill's
-  own text says — a re-run regenerates them from its seeds; that is exactly why a hand patch to one
-  is lost, and why the trap that belongs with a tracker goes into the traps list instead.
+  own text says — a re-run regenerates them from its seeds, and a hand patch to one is lost.
 - **No** — continue. No convention is negotiated, so the inherited ADRs (Phase 5) take the
   default landing point, `docs/adr/`, and the assumption is written into the birth certificate
   (`docs/provenance.md`) rather than left implicit: a project that adopts a convention later has
@@ -2538,8 +2537,7 @@ echo "setup: $domain_layout-context, ADRs in $adr_dir/; brief = $brief"
 # seed's shape fails before the first project file is written — and the two files that are the
 # skill's seeds verbatim are installed after. Those two are generated output: the skill regenerates
 # them from its seeds (which is its own "re-run to switch issue trackers"), and a hand patch to one
-# is silently dropped, which is why the trap that belongs with a tracker goes into the traps list
-# (Phase 5, `notes-setup`) instead of into these files.
+# is silently dropped.
 node --input-type=module - <<'NODE'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
@@ -3565,30 +3563,6 @@ records — shipped text cannot name a path this run decides.
 - `vp test` exits 1 when it finds no test files, which is why a project that has a test script
   passes `--passWithNoTests` until there is something to run. A green test command over an empty
   suite means the runner is wired, not that anything is covered.
-```
-
-```bash guide:exec id=notes-setup when=setup:yes
-set -euo pipefail
-: "${GUIDE_TRACKER:?Phase 4.5 must answer GUIDE_TRACKER when the setup flow runs}"
-
-# The trap the chosen tracker brings, and only the chosen tracker's: a project tracked in GitHub
-# reads blocking edges through the REST summary or a CLI field, never through the generated file's
-# wording — that file is regenerated from the skill's seed and a hand patch to it is lost silently.
-if [ "$GUIDE_TRACKER" = github ]; then
-  cat >> docs/agent-notes.md <<'NOTES'
-
-## The issue tracker (GitHub)
-
-- Read blocking edges with `gh api repos/<owner>/<repo>/issues/<n> --jq .issue_dependencies_summary`
-  (the REST summary: open blockers only) or `gh issue view <n> --json blockedBy`. The generated
-  `docs/agents/issue-tracker.md` shows a REST field name that `gh issue view --json` rejects; do not
-  patch that generated file — re-running the setup skill regenerates it from its seed, so the patch
-  is silently dropped.
-NOTES
-  echo "ok  the GitHub tracker's blocking-edge trap is in docs/agent-notes.md"
-else
-  echo "ok  tracker is $GUIDE_TRACKER; no GitHub-specific trap belongs in docs/agent-notes.md"
-fi
 ```
 
 ```bash guide:exec id=notes-proxy when=mode:frontend&layout:single

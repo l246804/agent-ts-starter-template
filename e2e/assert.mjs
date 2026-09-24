@@ -889,7 +889,6 @@ check("AGENTS.md keeps the tool-owned block and gains the project constraints", 
 
 check("the setup decision point left the trace its branch says it should", () => {
   const agents = read("AGENTS.md");
-  const notes = read(join("docs", "agent-notes.md"));
   const provenance = read(join("docs", "provenance.md"));
 
   if (setupRan) {
@@ -934,21 +933,10 @@ check("the setup decision point left the trace its branch says it should", () =>
     assert(domain.includes(layoutWord), `docs/agents/domain.md does not record the ${layoutWord} layout`);
     assert(domain.includes(`${adrDir}/`), `docs/agents/domain.md does not name the ADR directory ${adrDir}/`);
 
-    // The tracker's trap is conditional on the tracker: GitHub gets it, the others do not.
-    if (answers.GUIDE_TRACKER === "github") {
-      assert(notes.includes("issue_dependencies_summary"), "the GitHub tracker's blocking-edge trap is not in docs/agent-notes.md");
-      assert(notes.includes("blockedBy"), "the trap does not name `gh issue view --json blockedBy`");
-      assert(/do not\s+patch/i.test(notes), "the trap does not say the generated issue-tracker file must not be patched");
-      assert(/regenerat/i.test(notes), "the trap does not say the setup skill regenerates the file from its seed");
-      assert(/silently/i.test(notes), "the trap does not say a patch to the generated file is lost silently");
-    } else {
-      assert(!notes.includes("issue_dependencies_summary"), "a non-GitHub tracker got the GitHub blocking-edge trap");
-    }
     assert(!/was never negotiated|was deferred/i.test(provenance), "the provenance records a deferral although the setup flow ran");
   } else {
     assert(!existsSync(join(target, "docs", "agents")), "the setup flow was declined but docs/agents/ exists");
     assert(!/^## Agent skills[ \t]*$/m.test(agents), "the setup flow was declined but AGENTS.md carries its brief");
-    assert(!notes.includes("issue_dependencies_summary"), "the setup flow was declined but the GitHub tracker trap is in the notes");
     assert(/deferred|assumption/i.test(provenance), "the provenance does not record the deferred setup as an assumption");
   }
   return setupRan ? `${answers.GUIDE_TRACKER} tracker, ${answers.GUIDE_DOMAIN_LAYOUT || "single"}-context` : "deferred";
