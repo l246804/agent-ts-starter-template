@@ -10,34 +10,34 @@ those runs prove.
 
 - Guide: sha256 `681cf64f4a4d` — the digest each run's own plan recorded. A pass is recorded before
   it is committed, so this digest, not the commit below, identifies the revision that ran.
-- Git at the time of the pass: `4849c49 + uncommitted changes`
-- Profiles this pass ran: 9 of 9 (backend-monorepo, backend-monorepo-placeholder-no, backend-single, frontend-monorepo, frontend-monorepo-placeholder-yes, frontend-single, fullstack-monorepo, fullstack-monorepo-placeholder-no, fullstack-single)
+- Git at the time of the pass: `e3aa93d + uncommitted changes`
+- Profiles this pass ran: 9 of 9 (backend-monorepo-placeholder-no, backend-monorepo, backend-single, frontend-monorepo-placeholder-yes, frontend-monorepo, frontend-single, fullstack-monorepo-placeholder-no, fullstack-monorepo, fullstack-single)
 - Result: all 9 PASS
 
 | Profile | Shape | Setup | Placeholder | Result | Checks | Coverage (items/bullets) | Run |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `backend-monorepo` | backend × monorepo | no | yes | **PASS** | 27/0 | 54/71 | `e2e/.work/runs/20260924-213637-backend-monorepo` |
-| `backend-monorepo-placeholder-no` | backend × monorepo | no | no | **PASS** | 27/0 | 54/71 | `e2e/.work/runs/20260924-213755-backend-monorepo-placeholder-no` |
-| `backend-single` | backend × single | no | — | **PASS** | 22/0 | 43/51 | `e2e/.work/runs/20260924-213914-backend-single` |
-| `frontend-monorepo` | frontend × monorepo | no | no | **PASS** | 23/0 | 43/61 | `e2e/.work/runs/20260924-214027-frontend-monorepo` |
-| `frontend-monorepo-placeholder-yes` | frontend × monorepo | no | yes | **PASS** | 23/0 | 43/61 | `e2e/.work/runs/20260924-214129-frontend-monorepo-placeholder-yes` |
-| `frontend-single` | frontend × single | yes | — | **PASS** | 18/0 | 32/41 | `e2e/.work/runs/20260924-214232-frontend-single` |
-| `fullstack-monorepo` | fullstack × monorepo | no | yes | **PASS** | 26/0 | 56/80 | `e2e/.work/runs/20260924-214319-fullstack-monorepo` |
-| `fullstack-monorepo-placeholder-no` | fullstack × monorepo | no | no | **PASS** | 26/0 | 56/80 | `e2e/.work/runs/20260924-214545-fullstack-monorepo-placeholder-no` |
-| `fullstack-single` | fullstack × single | no | — | **PASS** | 24/0 | 50/64 | `e2e/.work/runs/20260924-214731-fullstack-single` |
+| `backend-monorepo-placeholder-no` | backend × monorepo | no | no | **PASS** | 27/0 | 54/71 | `e2e/.work/runs/20260925-151429-backend-monorepo-placeholder-no` |
+| `backend-monorepo` | backend × monorepo | no | yes | **PASS** | 27/0 | 54/71 | `e2e/.work/runs/20260925-151544-backend-monorepo` |
+| `backend-single` | backend × single | no | — | **PASS** | 22/0 | 43/51 | `e2e/.work/runs/20260925-151706-backend-single` |
+| `frontend-monorepo-placeholder-yes` | frontend × monorepo | no | yes | **PASS** | 23/0 | 43/61 | `e2e/.work/runs/20260925-151811-frontend-monorepo-placeholder-yes` |
+| `frontend-monorepo` | frontend × monorepo | no | no | **PASS** | 23/0 | 43/61 | `e2e/.work/runs/20260925-151910-frontend-monorepo` |
+| `frontend-single` | frontend × single | yes | — | **PASS** | 18/0 | 32/41 | `e2e/.work/runs/20260925-152006-frontend-single` |
+| `fullstack-monorepo-placeholder-no` | fullstack × monorepo | no | no | **PASS** | 26/0 | 56/80 | `e2e/.work/runs/20260925-152053-fullstack-monorepo-placeholder-no` |
+| `fullstack-monorepo` | fullstack × monorepo | no | yes | **PASS** | 26/0 | 56/80 | `e2e/.work/runs/20260925-152229-fullstack-monorepo` |
+| `fullstack-single` | fullstack × single | no | — | **PASS** | 24/0 | 50/64 | `e2e/.work/runs/20260925-152408-fullstack-single` |
 
 ## Versions that resolved
 
 | Profile | vite-plus | TypeScript | nitro | create-vite | skills revision | skills installed |
 | --- | --- | --- | --- | --- | --- | --- |
-| `backend-monorepo` | 1.0.0-rc.0 | 7.0.2 | 3.0.260903-beta | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
 | `backend-monorepo-placeholder-no` | 1.0.0-rc.0 | not installed in a package of this workspace (the root's program is checked by the toolchain) | 3.0.260903-beta | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
+| `backend-monorepo` | 1.0.0-rc.0 | 7.0.2 | 3.0.260903-beta | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
 | `backend-single` | 1.0.0-rc.0 | 7.0.2 | 3.0.260903-beta | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
-| `frontend-monorepo` | 1.0.0-rc.0 | 7.0.2 | — | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
 | `frontend-monorepo-placeholder-yes` | 1.0.0-rc.0 | 7.0.2 | — | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
+| `frontend-monorepo` | 1.0.0-rc.0 | 7.0.2 | — | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
 | `frontend-single` | 1.0.0-rc.0 | 7.0.2 | — | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
-| `fullstack-monorepo` | 1.0.0-rc.0 | 7.0.2 | 3.0.260903-beta | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
 | `fullstack-monorepo-placeholder-no` | 1.0.0-rc.0 | 7.0.2 | 3.0.260903-beta | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
+| `fullstack-monorepo` | 1.0.0-rc.0 | 7.0.2 | 3.0.260903-beta | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
 | `fullstack-single` | 1.0.0-rc.0 | 7.0.2 | 3.0.260903-beta | 9.2.1 | `c55ee46073ed923f86ce59a5eb3b6d895095d1b7` | 25 |
 
 ## What this record does not prove
@@ -58,7 +58,7 @@ those runs prove.
 
 ```bash
 bash e2e/matrix.sh                              # every profile, in order, then rewrites this file
-bash e2e/run.sh --profile backend-monorepo   # one profile
+bash e2e/run.sh --profile backend-monorepo-placeholder-no   # one profile
 ```
 
 Run logs: `e2e/.work/matrix/<profile>.log`; extracted plans and produced projects: `e2e/.work/runs/<timestamp>-<profile>/`.
