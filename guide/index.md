@@ -115,6 +115,10 @@ half-building it.
   `when=mode:fullstack&layout:monorepo` is the split one. Every step without one applies to the
   profile you are initializing.
 - Blocks **without** a `guide:` marker are explanation and examples.
+- If a step fails, **stop and report** — do not repair the project, and do not continue in place. The
+  directory then carries a `.guide-incomplete` file saying so, and the only supported recovery is to
+  delete the whole directory and run this guide again in an empty one. Running the verification step
+  (`guide:verify`) there first names what is missing; it fails on a directory that never finished.
 
 ## Answers — decision points, asked once and pre-answerable
 
@@ -208,9 +212,16 @@ set -euo pipefail
 fail() { printf 'preflight: %s\n' "$*" >&2; exit 1; }
 
 # 1. the target directory must be completely empty -----------------------------
+# A directory that carries the unfinished-run marker is not a directory to move files out of: the
+# run that wrote it stopped before its verification passed, and the only supported recovery is to
+# delete the directory and start over. Say that, rather than the generic "not empty" message.
 entries=$(ls -A .)
 if [ -n "$entries" ]; then
   printf 'preflight: the target directory is not empty:\n%s\n' "$entries" >&2
+  if [ -f .guide-incomplete ]; then
+    sed 's/^/preflight: /' .guide-incomplete >&2
+    fail "this directory holds an initialization that never reached a passing verification; delete the whole directory and run this guide again in an empty one. To see what it is missing, run the guide's verification step (guide:verify) here first"
+  fi
   fail "run this guide in an empty directory, or move these files away first"
 fi
 echo "ok  target directory is empty"

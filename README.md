@@ -30,6 +30,10 @@ Turn this empty directory into a project by following this guide.
    URL, with guide/index.md replaced by the path), and run exactly the steps it lists, in that order.
    Print that step-id list before you start, and check it against what you fetched: if a file or a step
    is missing, stop and report which one. Never fall back to fetching GUIDE.md.
+4. If a step fails, stop and report — do not repair the project, and do not re-run in place. The
+   directory then carries a `.guide-incomplete` file saying so; the only supported recovery is to
+   delete the whole directory and run this again in an empty one. To see what is missing first, run
+   the guide's verification step there: it names the missing document.
 ```
 
 ## Working on the guide

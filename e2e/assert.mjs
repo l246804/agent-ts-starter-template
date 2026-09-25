@@ -1027,6 +1027,19 @@ check("the run leaves no scratch of its own behind", () => {
   return "no .vite-plus-* entries";
 });
 
+check("the finished project says it is finished", () => {
+  // `.guide-incomplete` is written by the bootstrap step and removed only by a passing verification.
+  // It is not scratch: it is the project's own statement about itself, so a run that leaves it
+  // behind is a run that never passed verification — the half-built directory this marker exists to
+  // make visible. (It is deliberately outside the `.vite-plus-*` namespace, so the check above
+  // cannot stand in for this one.)
+  assert(
+    !existsSync(join(target, ".guide-incomplete")),
+    "the produced project still carries .guide-incomplete: verification did not remove the unfinished-run marker",
+  );
+  return "no .guide-incomplete marker";
+});
+
 check("agent-notes.md records the known traps and is referenced from AGENTS.md", () => {
   const notes = read(join("docs", "agent-notes.md"));
   assert(notes.includes("vp check"), "agent-notes.md does not mention the check/build split");

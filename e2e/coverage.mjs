@@ -349,6 +349,10 @@ export const NOT_SHIPPED = {
     where: "repo",
     why: "the delivery decision: 索引 + 分片 with GUIDE.md as the source, the hand-written 路由表 and the checks that keep them one text",
   },
+  "ADR-0016": {
+    where: "repo",
+    why: "the run's own statement about itself: a directory that never reached a passing verification carries a marker, and nothing in the shipped documents changes",
+  },
 };
 
 // ---------------------------------------------------------------------------------- the checking

@@ -548,7 +548,30 @@ negative_controls() {
   local survivors
   survivors=$(cd "$dirty" && ls -A | sort | tr '\n' ' ')
   [ "$survivors" = "keep-me.txt " ] || die "preflight wrote to a non-empty target: $survivors"
+  if grep -q 'never reached a passing verification' "$LOGS/neg-non-empty.log"; then
+    die "preflight called an ordinary non-empty directory an unfinished initialization"
+  fi
   echo "  refused, and wrote nothing ($survivors)"
+
+  # A directory that carries the unfinished-run marker gets the other answer: it is an
+  # initialization that stopped before its verification passed, and the supported recovery is to
+  # delete it. Both messages exist because the two situations are different, so both are asserted.
+  say "negative control: preflight recognises an initialization that never finished"
+  local half="$RUN_DIR/negative/half-built-target"
+  mkdir -p "$half"
+  printf 'This directory holds an initialization by GUIDE.md that did not reach a passing verification.\n' > "$half/.guide-incomplete"
+  if (cd "$half" && PATH="$MACHINE_PATH" bash "$PLAN/$preflight") > "$LOGS/neg-half-built.log" 2>&1; then
+    cat "$LOGS/neg-half-built.log"
+    die "preflight accepted a directory that carries the unfinished-run marker"
+  fi
+  grep -q 'never reached a passing verification' "$LOGS/neg-half-built.log" || {
+    tail -5 "$LOGS/neg-half-built.log"
+    die "preflight refused the half-built directory, but not as one (see $LOGS/neg-half-built.log)"
+  }
+  [ "$(cd "$half" && ls -A | sort | tr '\n' ' ')" = ".guide-incomplete " ] || {
+    die "preflight wrote to a half-built target, or removed the marker that says why it is not usable"
+  }
+  echo "  refused, named the unfinished run, and wrote nothing"
 
   say "negative control: preflight refuses Node < 24.14"
   local fake_bin="$RUN_DIR/negative/fake-node"

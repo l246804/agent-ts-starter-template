@@ -67,6 +67,21 @@ case "$ran" in
   *"$GUIDE_VP_VERSION"*) echo "ok  scaffolded with $ran" ;;
   *) echo "expected vite-plus $GUIDE_VP_VERSION, but $ran ran" >&2; exit 1 ;;
 esac
+# This directory is now an initialization in progress, and it says so: the file below is removed by
+# the verification step, and only when that step passes. A directory that still carries it is a run
+# that stopped somewhere — a fact the next reader, and this guide's own preflight on a retry, can see
+# without knowing anything else about the run.
+#
+# It is written here, after the scaffold, and not one line earlier: `vp create` refuses a directory
+# that is not empty, so a marker written before it would stop this guide at its first writing step
+# (measured: every profile failed with "Target directory … is not empty").
+cat > .guide-incomplete <<'MARK'
+This directory holds an initialization by GUIDE.md that did not reach a passing verification.
+Delete this whole directory and run the guide again in an empty one; do not continue in place.
+MARK
+printf 'started %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .guide-incomplete
+echo "ok  marked this directory as an initialization in progress (.guide-incomplete)"
+
 echo "ok  skeleton written"
 ```
 
@@ -1896,6 +1911,10 @@ else
 fi
 
 step "verification passed"
+# The only place the marker bootstrap wrote is removed: a directory that still carries it is a run
+# that stopped somewhere above, and that fact has to stay readable to whoever finds the directory.
+rm -f .guide-incomplete
+ok "the unfinished-run marker is gone: this directory is a finished initialization"
 done_checking
 ```
 
