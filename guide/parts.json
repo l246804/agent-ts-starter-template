@@ -1,8 +1,8 @@
 {
   "note": "生成物：由 e2e/guide-parts.mjs --write 生成，不要手改。order 里每个 id 每出现一次，就消费该分片 runs 里的下一段。",
   "guide": "GUIDE.md",
-  "guideSha256": "31300ffd5baa581f7a3b7dd2febe86e9e8a817411d9dffc8702232bdd7da140e",
-  "byteLength": 290321,
+  "guideSha256": "1bf0c87263835b1e147daf55eff20c02271d6605ce605dee079e1e4242f7ae10",
+  "byteLength": 291710,
   "parts": {
     "index": {
       "file": "guide/index.md",
@@ -15,7 +15,7 @@
     "core": {
       "file": "guide/parts/10-core.md",
       "gate": null,
-      "byteLength": 100491,
+      "byteLength": 101880,
       "runs": [
         6616,
         11485,
@@ -23,8 +23,8 @@
         9079,
         6778,
         6447,
-        10935,
-        34211
+        11129,
+        35406
       ]
     },
     "tnb:yes": {

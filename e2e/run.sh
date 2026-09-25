@@ -631,7 +631,18 @@ FAKE
     die "the verify block passed with a type error in the project — green is not meaningful"
   fi
   rm -f "$planted"
-  echo "  verify failed as it must (see $LOGS/neg-verify-red.log)"
+  # Failing at all is not the claim: the failure has to be the planted error. Without this, any
+  # earlier assertion that happens to go red here satisfies the control (measured: a documents
+  # check that hashed the landed ADRs did exactly that on two profiles).
+  grep -q 'TS2322' "$LOGS/neg-verify-red.log" || {
+    tail -20 "$LOGS/neg-verify-red.log"
+    die "the verify block failed, but not on the planted type error (see $LOGS/neg-verify-red.log)"
+  }
+  grep -qF "$plant_dir/__e2e_planted.ts" "$LOGS/neg-verify-red.log" || {
+    tail -20 "$LOGS/neg-verify-red.log"
+    die "the verify block failed on a type error, but not on the planted file (see $LOGS/neg-verify-red.log)"
+  }
+  echo "  verify failed as it must, naming the planted error (see $LOGS/neg-verify-red.log)"
 
   # A root script that names a package by its task is the form this guide's root commands are
   # re-pointed to avoid: in the arrangement that deletes the package, that script exits 0 and runs

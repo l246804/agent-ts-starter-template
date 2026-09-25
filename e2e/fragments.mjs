@@ -51,6 +51,14 @@ const FRAGMENTS = [
     seed: /^pnpm\) pnpm install --no-frozen-lockfile ;;$/,
   },
   {
+    // The most-copied line in the guide: every step that rewrites a file in Node starts with it. The
+    // family is the exact import list, so a copy that drifts to a different list leaves the family
+    // and the count falls — which is the failure this declares.
+    name: "the node:fs import header",
+    copies: 15,
+    line: /^import \{ readFileSync, writeFileSync \} from "node:fs";$/,
+  },
+  {
     name: "the application manifest key order",
     copies: 3,
     line: /^const order = \[.*"devEngines"\];$/,

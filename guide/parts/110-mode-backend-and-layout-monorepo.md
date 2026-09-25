@@ -65,7 +65,7 @@ echo "ok  backend/monorepo (workspace) rules appended"
 ```markdown guide:file path=.vite-plus-inherited-adrs/0004-backend-workspace.md when=mode:backend&layout:monorepo
 # The backend lives in a workspace whose root is the server
 
-This project is a pnpm workspace with exactly one package that matters: the root, which *is* the
+This project is a pnpm workspace with exactly one package that matters: the root, which _is_ the
 Nitro v3 server (a Vite plugin, `serverDir: "./server"`, `output: { dir: "dist" }`, routes whose URL
 is their file path with no prefix). The layout is a workspace because the project may grow a second
 package, not because it has two halves today; the client the monorepo template wrote was deleted in

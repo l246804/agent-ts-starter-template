@@ -3612,7 +3612,7 @@ artifacts: two builds, two outputs, one API.
 ```markdown guide:file path=.vite-plus-inherited-adrs/0004-backend-workspace.md when=mode:backend&layout:monorepo
 # The backend lives in a workspace whose root is the server
 
-This project is a pnpm workspace with exactly one package that matters: the root, which *is* the
+This project is a pnpm workspace with exactly one package that matters: the root, which _is_ the
 Nitro v3 server (a Vite plugin, `serverDir: "./server"`, `output: { dir: "dist" }`, routes whose URL
 is their file path with no prefix). The layout is a workspace because the project may grow a second
 package, not because it has two halves today; the client the monorepo template wrote was deleted in
@@ -4404,8 +4404,10 @@ Installed content lives in \`.agents/skills/\`.
 ## Inherited ADRs as installed
 
 The landing step read these back out of the directory it copied them into, then deleted its staging
-directory: the names and content hashes of the documents that actually landed, so a later reader (or
-the verification step) can tell the shipped text from a hand edit.
+directory: the names and content hashes of the documents **as they were installed**. The names are
+what verification reads back to find them; the hashes are the installed bytes, so a later reader can
+tell a hand edit from the text a run shipped — a formatter normalising the Markdown afterwards (this
+project's `vp fmt` does) changes the file, not the record.
 
 | File | sha256 |
 | --- | --- |
@@ -4605,17 +4607,15 @@ step "the documents this run wrote"
 # a run could drop Phase 5 and still print "verification passed" — the code half of the
 # initialization would be proven and the documents half assumed.
 #
-# It runs first, before `vp fmt` touches the project: the ADR check below compares the landed
-# documents against the hashes the landing step recorded, and a formatter that normalises Markdown
-# (measured: `vp fmt` rewrites `*is*` to `_is_` inside these documents) would both hide a hand edit
-# and flag its own rewrite. What is asserted is the state this run produced, before its own tools
-# normalise it further.
+# It runs first because it needs nothing else: no build, no dev server, no network. A run that lost
+# half its deliverable fails in seconds instead of after a build and a smoke test.
 [ -f docs/provenance.md ] || { echo "docs/provenance.md is missing — Phase 5 wrote no record" >&2; exit 1; }
-grep -qE '^\| Inherited ADR landing point \| `[^`]+/` — .+ \|$' docs/provenance.md || {
+grep -qE '^\| *Inherited ADR landing point *\| *`[^`]+/` *— .+' docs/provenance.md || {
   echo "docs/provenance.md records no ADR landing point, or not where it came from" >&2
   exit 1
 }
-adr_dir=$(sed -n 's/^| Inherited ADR landing point | `\(.*\)\/` — .*$/\1/p' docs/provenance.md)
+adr_dir=$(sed -n 's/^| *Inherited ADR landing point *| *`\([^`]*\)`.*$/\1/p' docs/provenance.md | head -1)
+adr_dir=${adr_dir%/}
 [ -n "$adr_dir" ] || { echo "the recorded ADR landing point could not be read back" >&2; exit 1; }
 ok "docs/provenance.md records the landing point $adr_dir/ and its source"
 
@@ -4625,24 +4625,44 @@ grep -qF "\`$adr_dir/\`" AGENTS.md || { echo "AGENTS.md's closing line does not 
 ok "the constraints are in AGENTS.md, whose closing line names $adr_dir/"
 
 [ -d "$adr_dir" ] || { echo "the recorded ADR landing point $adr_dir/ does not exist" >&2; exit 1; }
-# The names and hashes come from the record, which the landing step filled in before it deleted its
-# staging directory: "the document is the one that landed" is re-checked here rather than trusted,
-# and the check needs no second copy of the name list.
-rows=$(sed -n 's/^| `\([^`]*\.md\)` | `\([0-9a-f]\{64\}\)` |$/\1 \2/p' docs/provenance.md)
-[ -n "$rows" ] || {
-  echo "docs/provenance.md records no landed ADR with a hash: the landing point cannot be checked" >&2
-  exit 1
+# The names come from the record — the landing step listed what it installed before it deleted its
+# staging directory — and this checks the landing point still holds them, as documents rather than
+# empty shells. The byte-for-byte claim ("these are the files that were staged") belongs to that
+# step's own `cmp`, at install time: re-hashing here would compare against a pre-formatter hash and
+# call the project's own `vp fmt` a hand edit (measured, on the two backend-workspace profiles).
+# Parsed by shape, not by spacing: the project's own `vp fmt` pads these table cells, and a
+# pattern that assumed single spaces matched only the unpadded rows — it verified 2 of the 4 landed
+# documents while printing a green line. The parser therefore counts the table's rows and fails if
+# it did not read one name per row.
+rows=$(node --input-type=module - <<'NODE'
+import { readFileSync } from "node:fs";
+const record = readFileSync("docs/provenance.md", "utf8");
+const section = record.split(/^## /m).find((part) => part.startsWith("Inherited ADRs as installed"));
+if (!section) {
+  console.error("docs/provenance.md has no 'Inherited ADRs as installed' section");
+  process.exit(1);
 }
+const lines = section.split("\n").filter((line) => /^\s*\|/.test(line));
+const dataRows = lines.filter((line) => !/^\s*\|[\s|:-]+\|\s*$/.test(line)).length - 1; // minus the header
+const names = [...section.matchAll(/^\s*\|\s*`([^`]+\.md)`\s*\|/gm)].map((match) => match[1]);
+if (names.length === 0) { console.error("the record's landed-ADR table names no document"); process.exit(1); }
+if (names.length !== dataRows) {
+  console.error(`the record's landed-ADR table has ${dataRows} row(s) but only ${names.length} parsed: the check would verify fewer documents than the record names`);
+  process.exit(1);
+}
+process.stdout.write(names.join("\n"));
+NODE
+)
 landed=0
-while read -r name hash; do
+while read -r name; do
   [ -n "$name" ] || continue
   [ -f "$adr_dir/$name" ] || { echo "$adr_dir/$name is recorded as landed but is not there" >&2; exit 1; }
-  got=$(sha256sum "$adr_dir/$name" | cut -d' ' -f1)
-  [ "$got" = "$hash" ] || { echo "$adr_dir/$name is not the document that landed (recorded $hash, now $got)" >&2; exit 1; }
+  [ -s "$adr_dir/$name" ] || { echo "$adr_dir/$name is empty" >&2; exit 1; }
+  head -1 "$adr_dir/$name" | grep -q '^# ' || { echo "$adr_dir/$name has no heading; it is not the document the guide shipped" >&2; exit 1; }
   landed=$((landed + 1))
 done <<< "$rows"
 [ "$landed" -gt 0 ] || { echo "the record lists no inherited ADR" >&2; exit 1; }
-ok "$landed inherited ADRs are at $adr_dir/, each still the bytes that landed"
+ok "$landed inherited ADRs are at $adr_dir/, the ones the record names"
 
 [ -f docs/agent-notes.md ] || { echo "docs/agent-notes.md is missing" >&2; exit 1; }
 grep -q '^# Agent notes — known traps and version facts' docs/agent-notes.md || {
