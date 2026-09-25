@@ -81,11 +81,10 @@ case "$GUIDE_MODE" in
     # The split shape's backend is this workspace's own root server, so the target is written from
     # its port rather than asked for. Change that port in one place and this file follows — a target
     # on a port nothing listens on answers 502, which is the loud half of getting it wrong.
-    # (Read with a default and required inside this branch: a frontend workspace has no root server,
-    # so it never answers this, and the extractor requires every `$GUIDE_…` named without a default
-    # to have been answered in every profile that runs the step.)
-    dev_port_answer=${GUIDE_DEV_PORT:-}
-    [ -n "$dev_port_answer" ] || { echo "the split shape needs GUIDE_DEV_PORT (the port the workspace root server binds)" >&2; exit 1; }
+    # (Read with a default, like the `ports` step and the verification step: a root server that was
+    # not told a port keeps Nitro's default of 3000, so this target follows that default instead of
+    # demanding an answer a frontend workspace never needs.)
+    dev_port_answer=${GUIDE_DEV_PORT:-3000}
     dev_proxy_answer="http://127.0.0.1:${dev_port_answer}"
     proxy_target="the workspace root server"
     ;;

@@ -184,7 +184,7 @@ const NOTES = {
     ["C34", "all", "`#/…` specifiers need Node >= 24.14.0"],
   ],
   Versions: [
-    ["C7", "all", "TypeScript is 7.x (`^7.0.2`)"],
+    ["C7", "all", "TypeScript is the 7.x line"],
     ["C7", "all", "uses the TypeScript 6 API bridge"],
     ["C1", "all", "`vite-plus` is a devDependency, never a global install"],
   ],

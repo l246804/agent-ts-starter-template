@@ -18,7 +18,8 @@
 
 ## Consequences
 
-- 一次运行读索引（约 40 KB）+ 本支分片（约 40–100 KB），不读其他五支；`GUIDE.md` 仍是 harness 读的单文件视图，逐字节等于分片按序粘回的结果。
+- 实测（本轮状态，`guide/parts.json` 的字节数）：`GUIDE.md` 281 KB；索引 35 KB + 共享分片 `core` 96 KB 是每次运行都读的，分支分片 11–62 KB 按本支取。一次运行读 142.5–192.8 KB（全文的 51–69%），比读整篇少 88–138 KB。共享的 96 KB 是这块收益的上界：其中验证段约 25 KB（ADR-0006：它只能有一个、不能拆不能门控），其余是每个形状都执行的核心步骤与序言——想再降，得动正文本身（评审里的 pruning 杠杆，未做）。
+- `GUIDE.md` 仍是 harness 读的单文件视图，逐字节等于分片按序粘回的结果。
 - `GUIDE.md` 的任何字节改动都必须重切分片（`node e2e/guide-parts.mjs --write`），否则 `coverage.mjs --self-check`（`run.sh` 第一步就跑）红；改了 `when=` 门或增删步骤，还要用 `router.mjs --print` 重出路由表并重跑。
 - 增删一个 step id 会同时改变路由表与（可能）重复片段计数：两者都是「改一处就要同步」的显式账，机器会指出差在哪一行。
 - `e2e/router.mjs`、`e2e/fragments.mjs` 与 `guide-parts.mjs` 一起由 `coverage.mjs --self-check` 调用，故矩阵与单 profile 运行都从同一扇门进来。

@@ -76,7 +76,10 @@ cat >> docs/agent-notes.md <<'NOTES'
 - v3 has no auto-imports: handlers import `defineHandler` from `nitro` explicitly, and types
   come from the package's own exports (`nitro`, `nitro/h3`, `nitro/types`).
 - The dev server's default port comes from Nitro (`3000`), not from Vite (`5173`), once the
-  plugin is in play. Pass `--port` when the port matters.
+  plugin is in play. This project does not depend on either default: every dev server's port is
+  written into its own `vite.config.ts` as `server: { port, strictPort: true }`, and `PORT` in the
+  environment still wins for a running process. Change the port there, in one place, rather than on
+  a command line.
 - The production artefact is `node dist/server/index.mjs` (the `PORT` environment variable is
   honoured by the node-server preset); the Nitro CLI is not needed to run it.
 - With the plugin wired, `vp test` ends with `close timed out after 10000ms … Tests closed

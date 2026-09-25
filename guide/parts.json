@@ -1,30 +1,30 @@
 {
   "note": "生成物：由 e2e/guide-parts.mjs --write 生成，不要手改。order 里每个 id 每出现一次，就消费该分片 runs 里的下一段。",
   "guide": "GUIDE.md",
-  "guideSha256": "0b879283c13396dd3559e6babd8fcab9e96cacbebbc2660ac531688ff53e9afc",
-  "byteLength": 278606,
+  "guideSha256": "b856e9d40c36e88aaa854efbe11aad25c14c5e099339ed8f38afa02a299f8abe",
+  "byteLength": 287786,
   "parts": {
     "index": {
       "file": "guide/index.md",
       "gate": null,
-      "byteLength": 34764,
+      "byteLength": 35971,
       "runs": [
-        34764
+        35971
       ]
     },
     "core": {
       "file": "guide/parts/10-core.md",
       "gate": null,
-      "byteLength": 91320,
+      "byteLength": 98540,
       "runs": [
-        6238,
-        9823,
-        10652,
+        6616,
+        11485,
+        14940,
         9079,
         6778,
-        5376,
-        10089,
-        33285
+        6120,
+        10205,
+        33317
       ]
     },
     "tnb:yes": {
@@ -38,9 +38,9 @@
     "mode:backend&layout:single": {
       "file": "guide/parts/30-mode-backend-and-layout-single.md",
       "gate": "mode:backend&layout:single",
-      "byteLength": 15784,
+      "byteLength": 15833,
       "runs": [
-        11433,
+        11482,
         1624,
         1645,
         1082
@@ -49,9 +49,9 @@
     "mode:fullstack&layout:single": {
       "file": "guide/parts/40-mode-fullstack-and-layout-single.md",
       "gate": "mode:fullstack&layout:single",
-      "byteLength": 29930,
+      "byteLength": 30022,
       "runs": [
-        16765,
+        16857,
         2953,
         3108,
         3944,
@@ -62,27 +62,27 @@
     "layout:monorepo": {
       "file": "guide/parts/50-layout-monorepo.md",
       "gate": "layout:monorepo",
-      "byteLength": 22185,
+      "byteLength": 22485,
       "runs": [
-        19097,
+        19397,
         3088
       ]
     },
     "mode:frontend|fullstack&layout:monorepo": {
       "file": "guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md",
       "gate": "mode:frontend|fullstack&layout:monorepo",
-      "byteLength": 8844,
+      "byteLength": 8703,
       "runs": [
         2652,
-        6192
+        6051
       ]
     },
     "mode:backend|fullstack&layout:monorepo": {
       "file": "guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md",
       "gate": "mode:backend|fullstack&layout:monorepo",
-      "byteLength": 9799,
+      "byteLength": 9997,
       "runs": [
-        8359,
+        8557,
         1440
       ]
     },
@@ -144,10 +144,10 @@
     "mode:backend|fullstack": {
       "file": "guide/parts/130-mode-backend-or-fullstack.md",
       "gate": "mode:backend|fullstack",
-      "byteLength": 5802,
+      "byteLength": 6057,
       "runs": [
         2982,
-        2820
+        3075
       ]
     },
     "mode:backend|fullstack&layout:single": {

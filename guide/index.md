@@ -33,27 +33,27 @@ one property the split exists for.
 ```text router
 [frontend/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/80-mode-frontend-and-layout-single.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install proxy skills setup-guard adr-convention agents-md agents-rules-frontend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md adr-land file:docs/agent-notes.md notes-proxy prov-frontend-single provenance report-frontend-single verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install proxy ports skills setup-guard adr-convention agents-md agents-rules-frontend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md adr-land file:docs/agent-notes.md notes-proxy prov-frontend-single provenance report-frontend-single verify
 
 [frontend/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md guide/parts/120-mode-frontend-and-layout-monorepo.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app proxy-workspace skills setup-guard adr-convention agents-md agents-rules-frontend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0004-frontend-workspace.md adr-land file:docs/agent-notes.md notes-proxy-app notes-workspace prov-frontend-monorepo provenance report-frontend-monorepo verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app proxy-workspace ports skills setup-guard adr-convention agents-md agents-rules-frontend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0004-frontend-workspace.md adr-land file:docs/agent-notes.md notes-proxy-app notes-workspace prov-frontend-monorepo provenance report-frontend-monorepo verify
 
 [backend/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/30-mode-backend-and-layout-single.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/140-mode-backend-or-fullstack-and-layout-single.md guide/parts/150-mode-backend.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install backend-skeleton backend-manifest backend-plugin skills setup-guard adr-convention agents-md agents-rules-backend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-backend prov-backend-single provenance report-backend-single verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install backend-skeleton backend-manifest backend-plugin ports skills setup-guard adr-convention agents-md agents-rules-backend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-backend prov-backend-single provenance report-backend-single verify
 
 [backend/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md guide/parts/110-mode-backend-and-layout-monorepo.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/150-mode-backend.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-plugin skills setup-guard adr-convention agents-md agents-rules-backend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-backend-workspace.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-backend prov-backend-monorepo provenance report-backend-monorepo verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-plugin ports skills setup-guard adr-convention agents-md agents-rules-backend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-backend-workspace.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-backend prov-backend-monorepo provenance report-backend-monorepo verify
 
 [fullstack/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/40-mode-fullstack-and-layout-single.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/140-mode-backend-or-fullstack-and-layout-single.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install ssr-skeleton ssr-manifest ssr-plugin skills setup-guard adr-convention agents-md agents-rules-fullstack-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-ssr-shape.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-ssr prov-fullstack-single provenance report-fullstack-single verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install ssr-skeleton ssr-manifest ssr-plugin ports skills setup-guard adr-convention agents-md agents-rules-fullstack-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-ssr-shape.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-ssr prov-fullstack-single provenance report-fullstack-single verify
 
 [fullstack/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md guide/parts/100-mode-fullstack-and-layout-monorepo.md guide/parts/130-mode-backend-or-fullstack.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app workspace-plugin proxy-workspace skills setup-guard adr-convention agents-md agents-rules-fullstack-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-split-shape.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-proxy-split prov-fullstack-monorepo provenance report-fullstack-monorepo verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app workspace-plugin proxy-workspace ports skills setup-guard adr-convention agents-md agents-rules-fullstack-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-split-shape.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-proxy-split prov-fullstack-monorepo provenance report-fullstack-monorepo verify
 
 unrun tnb:yes: fetch: guide/parts/20-tnb-yes.md; steps: manifest-tnb (after manifest)
 setup:yes: fetch: guide/parts/90-setup-yes.md; steps: setup-flow (after setup-guard)
@@ -319,7 +319,22 @@ require_vanilla_base() {  # require_vanilla_base <why>
 }
 
 case "$GUIDE_MODE/$GUIDE_LAYOUT" in
-  frontend/single) echo "ok  profile frontend/single" ;;
+  frontend/single)
+    # The one shape whose framework is a free choice, and the only one where the TypeScript 6 bridge
+    # can be needed: `vue-ts` and `svelte-ts` ship checkers that still consume TypeScript 6's
+    # programmatic API, and `manifest` would pin the bridge for them. A pair that cannot work is
+    # refused here, before a file is written, rather than several minutes later at the build.
+    case "${GUIDE_FRAMEWORK:-}" in
+      vue-ts|svelte-ts)
+        if [ "${GUIDE_TNB:-no}" != yes ]; then
+          printf '%s needs the TypeScript 6 API bridge: answer GUIDE_TNB=yes (and GUIDE_TNB_VERSION) so manifest pins it.\n' "${GUIDE_FRAMEWORK:-<unanswered>}" >&2
+          printf 'Stop here and report — nothing has been written.\n' >&2
+          exit 1
+        fi
+        ;;
+    esac
+    echo "ok  profile frontend/single"
+    ;;
   frontend/monorepo)
     require_vanilla_base "the monorepo template writes the app from create-vite's vanilla-ts template, and this revision does not re-scaffold it; ${GUIDE_FRAMEWORK:-<unanswered>} is not available here."
     echo "ok  profile frontend/monorepo (workspace shell at the root, apps/website is the app)"
@@ -425,12 +440,18 @@ set -euo pipefail
 : "${GUIDE_VP_VERSION:?Phase 2 must answer GUIDE_VP_VERSION}"
 : "${GUIDE_TS_VERSION:?Phase 2 must answer GUIDE_TS_VERSION}"
 : "${GUIDE_SKILLS_VERSION:?Phase 2 must answer GUIDE_SKILLS_VERSION}"
-: "${GUIDE_TNB:?Phase 2 must answer GUIDE_TNB (yes for vue-ts/svelte-ts, else no)}"
-: "${GUIDE_TNB_VERSION:?Phase 2 must answer GUIDE_TNB_VERSION}"
+# The bridge is optional and its default is the documented one ("yes for vue-ts/svelte-ts, else
+# no"), so it is read with a default and asserted only where it changes something: a framework that
+# needs it is refused by the profile guard without it, and its pin is required below when it is yes.
+GUIDE_TNB=${GUIDE_TNB:-no}
 case "$GUIDE_TNB" in
   yes|no) : ;;
   *) echo "GUIDE_TNB must be yes or no, got '$GUIDE_TNB'" >&2; exit 1 ;;
 esac
+if [ "$GUIDE_TNB" = yes ]; then
+  tnb_version=${GUIDE_TNB_VERSION:-}
+  [ -n "$tnb_version" ] || { echo "GUIDE_TNB=yes pins the bridge, so Phase 2 must answer GUIDE_TNB_VERSION" >&2; exit 1; }
+fi
 
 # The server foundation belongs to the modes that have a server. It is read with a default so a
 # frontend run does not have to answer it, and required in the modes that do.
@@ -447,7 +468,7 @@ esac
 if [ "$GUIDE_TNB" = yes ]; then
   echo "note: the TypeScript bridge is in use — tsc --version prints 6.0.3, the classic API's version, and must never be used to assert the TypeScript version"
 fi
-echo "ok  pinned: vite-plus $GUIDE_VP_VERSION (prerelease), TypeScript $GUIDE_TS_VERSION, skills $GUIDE_SKILLS_VERSION, bridge $GUIDE_TNB_VERSION"
+echo "ok  pinned: vite-plus $GUIDE_VP_VERSION (prerelease), TypeScript $GUIDE_TS_VERSION, skills $GUIDE_SKILLS_VERSION, bridge ${GUIDE_TNB_VERSION:-not used}"
 if [ -n "$nitro_pin" ]; then
   echo "ok  the server foundation is pinned: nitro $nitro_pin (prerelease, no stable v3 line to fall back to)"
 fi

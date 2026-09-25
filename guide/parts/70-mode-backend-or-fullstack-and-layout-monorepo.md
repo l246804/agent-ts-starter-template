@@ -111,6 +111,7 @@ NODE
 # The server's own code is type-checked, which is the claim the merged program makes in the other
 # server profiles. It cannot be inherited from them: here the server is the root's own program,
 # and the whole workspace is what the root check walks.
+trap 'rm -f server/routes/__guide_probe.ts' EXIT
 printf 'export const __guideServerProbe: number = "not a number";\n' > server/routes/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null
 if ./node_modules/.bin/vp check > .vite-plus-server-control.log 2>&1; then
@@ -129,6 +130,7 @@ echo "ok  a planted type error in server/routes was caught (TS2322)"
 # cover it, because the app has no `check` script of its own for `vp run -r check` to run. Only the
 # split shape has an app; a backend workspace deleted it above.
 if [ "$GUIDE_MODE" = fullstack ]; then
+trap 'rm -f apps/website/src/__guide_probe.ts' EXIT
 printf 'export const __guideAppProbe: number = "not a number";\n' > apps/website/src/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null
 if ./node_modules/.bin/vp check > .vite-plus-app-control.log 2>&1; then
@@ -145,6 +147,7 @@ echo "ok  a planted type error in apps/website/src was caught (TS2322)"
 
 # And the app's own alias map, in the app's program: the app's tsc runs inside `vp run -r build`,
 # so this proves the map resolves for the build script too, not only for the root check.
+trap 'rm -f apps/website/src/__guide_alias_target.ts apps/website/src/__guide_alias_use.ts' EXIT
 cat > apps/website/src/__guide_alias_target.ts <<'TS'
 export const aliasProbe = "imports-alias-resolves";
 TS

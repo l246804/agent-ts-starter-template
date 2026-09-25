@@ -330,6 +330,7 @@ NODE
 # Both halves of the merged program are proved, not trusted: a planted type error in src/ and one
 # in server/routes/api/ each have to turn `vp check` red. A tsconfig that quietly covered only one
 # half would leave every later `vp check` green and blind there.
+trap 'rm -f src/__guide_probe.ts' EXIT
 printf 'export const __guideClientProbe: number = "not a number";\n' > src/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null
 if ./node_modules/.bin/vp check > .vite-plus-client-control.log 2>&1; then
@@ -344,6 +345,7 @@ grep -q 'TS2322' .vite-plus-client-control.log || {
 rm -f src/__guide_probe.ts .vite-plus-client-control.log
 echo "ok  a planted type error in src/ was caught (TS2322)"
 
+trap 'rm -f server/routes/api/__guide_probe.ts' EXIT
 printf 'export const __guideServerProbe: number = "not a number";\n' > server/routes/api/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null
 if ./node_modules/.bin/vp check > .vite-plus-server-control.log 2>&1; then

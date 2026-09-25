@@ -67,7 +67,10 @@ set -euo pipefail
 : "${GUIDE_MODE:?Phase 1 must answer GUIDE_MODE}"
 : "${GUIDE_LAYOUT:?Phase 1 must answer GUIDE_LAYOUT}"
 : "${GUIDE_TS_VERSION:?Phase 2 must answer GUIDE_TS_VERSION}"
-: "${GUIDE_TNB:?Phase 2 must answer GUIDE_TNB}"
+# Same default as everywhere else the bridge is read: a monorepo app is the template's `vanilla-ts`
+# app, so no monorepo shape needs the bridge, and the question should not be a requirement here.
+GUIDE_TNB=${GUIDE_TNB:-no}
+export GUIDE_TNB
 : "${GUIDE_PLACEHOLDER:?Phase 1 must answer GUIDE_PLACEHOLDER}"
 
 # What this mode puts in the workspace, as the two facts every later step reads: whether a server
@@ -243,6 +246,10 @@ for (const key of Object.keys(manifest)) if (!(key in ordered)) ordered[key] = m
 writeFileSync(file, JSON.stringify(ordered, null, 2) + "\n");
 NODE
     echo "ok  placeholder package kept and pruned (publishing shape removed, versions in the catalog)"
+    ;;
+  *)
+    echo "the placeholder decision must be yes or no, got '$GUIDE_PLACEHOLDER'" >&2
+    exit 1
     ;;
 esac
 

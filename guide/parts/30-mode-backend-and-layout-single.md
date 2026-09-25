@@ -219,6 +219,7 @@ NODE
 # The merged tsconfig exists so that the server is type-checked, so that is proved rather than
 # trusted: a planted type error inside a route has to turn `vp check` red. Without this, a
 # tsconfig that quietly excluded server/ would leave every later `vp check` green and blind.
+trap 'rm -f server/routes/__guide_probe.ts' EXIT
 printf 'export const __guideServerProbe: number = "not a number";\n' > server/routes/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null   # a formatting complaint would short-circuit the check
 if ./node_modules/.bin/vp check > .vite-plus-server-control.log 2>&1; then

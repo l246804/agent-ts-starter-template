@@ -33,27 +33,27 @@ one property the split exists for.
 ```text router
 [frontend/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/80-mode-frontend-and-layout-single.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install proxy skills setup-guard adr-convention agents-md agents-rules-frontend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md adr-land file:docs/agent-notes.md notes-proxy prov-frontend-single provenance report-frontend-single verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install proxy ports skills setup-guard adr-convention agents-md agents-rules-frontend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md adr-land file:docs/agent-notes.md notes-proxy prov-frontend-single provenance report-frontend-single verify
 
 [frontend/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md guide/parts/120-mode-frontend-and-layout-monorepo.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app proxy-workspace skills setup-guard adr-convention agents-md agents-rules-frontend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0004-frontend-workspace.md adr-land file:docs/agent-notes.md notes-proxy-app notes-workspace prov-frontend-monorepo provenance report-frontend-monorepo verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app proxy-workspace ports skills setup-guard adr-convention agents-md agents-rules-frontend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0004-frontend-workspace.md adr-land file:docs/agent-notes.md notes-proxy-app notes-workspace prov-frontend-monorepo provenance report-frontend-monorepo verify
 
 [backend/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/30-mode-backend-and-layout-single.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/140-mode-backend-or-fullstack-and-layout-single.md guide/parts/150-mode-backend.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install backend-skeleton backend-manifest backend-plugin skills setup-guard adr-convention agents-md agents-rules-backend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-backend prov-backend-single provenance report-backend-single verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install backend-skeleton backend-manifest backend-plugin ports skills setup-guard adr-convention agents-md agents-rules-backend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-backend prov-backend-single provenance report-backend-single verify
 
 [backend/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md guide/parts/110-mode-backend-and-layout-monorepo.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/150-mode-backend.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-plugin skills setup-guard adr-convention agents-md agents-rules-backend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-backend-workspace.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-backend prov-backend-monorepo provenance report-backend-monorepo verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-plugin ports skills setup-guard adr-convention agents-md agents-rules-backend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-backend-workspace.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-backend prov-backend-monorepo provenance report-backend-monorepo verify
 
 [fullstack/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/40-mode-fullstack-and-layout-single.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/140-mode-backend-or-fullstack-and-layout-single.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install ssr-skeleton ssr-manifest ssr-plugin skills setup-guard adr-convention agents-md agents-rules-fullstack-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-ssr-shape.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-ssr prov-fullstack-single provenance report-fullstack-single verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install ssr-skeleton ssr-manifest ssr-plugin ports skills setup-guard adr-convention agents-md agents-rules-fullstack-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-ssr-shape.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-ssr prov-fullstack-single provenance report-fullstack-single verify
 
 [fullstack/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md guide/parts/100-mode-fullstack-and-layout-monorepo.md guide/parts/130-mode-backend-or-fullstack.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app workspace-plugin proxy-workspace skills setup-guard adr-convention agents-md agents-rules-fullstack-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-split-shape.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-proxy-split prov-fullstack-monorepo provenance report-fullstack-monorepo verify
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app workspace-plugin proxy-workspace ports skills setup-guard adr-convention agents-md agents-rules-fullstack-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-split-shape.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-proxy-split prov-fullstack-monorepo provenance report-fullstack-monorepo verify
 
 unrun tnb:yes: fetch: guide/parts/20-tnb-yes.md; steps: manifest-tnb (after manifest)
 setup:yes: fetch: guide/parts/90-setup-yes.md; steps: setup-flow (after setup-guard)
@@ -319,7 +319,22 @@ require_vanilla_base() {  # require_vanilla_base <why>
 }
 
 case "$GUIDE_MODE/$GUIDE_LAYOUT" in
-  frontend/single) echo "ok  profile frontend/single" ;;
+  frontend/single)
+    # The one shape whose framework is a free choice, and the only one where the TypeScript 6 bridge
+    # can be needed: `vue-ts` and `svelte-ts` ship checkers that still consume TypeScript 6's
+    # programmatic API, and `manifest` would pin the bridge for them. A pair that cannot work is
+    # refused here, before a file is written, rather than several minutes later at the build.
+    case "${GUIDE_FRAMEWORK:-}" in
+      vue-ts|svelte-ts)
+        if [ "${GUIDE_TNB:-no}" != yes ]; then
+          printf '%s needs the TypeScript 6 API bridge: answer GUIDE_TNB=yes (and GUIDE_TNB_VERSION) so manifest pins it.\n' "${GUIDE_FRAMEWORK:-<unanswered>}" >&2
+          printf 'Stop here and report — nothing has been written.\n' >&2
+          exit 1
+        fi
+        ;;
+    esac
+    echo "ok  profile frontend/single"
+    ;;
   frontend/monorepo)
     require_vanilla_base "the monorepo template writes the app from create-vite's vanilla-ts template, and this revision does not re-scaffold it; ${GUIDE_FRAMEWORK:-<unanswered>} is not available here."
     echo "ok  profile frontend/monorepo (workspace shell at the root, apps/website is the app)"
@@ -425,12 +440,18 @@ set -euo pipefail
 : "${GUIDE_VP_VERSION:?Phase 2 must answer GUIDE_VP_VERSION}"
 : "${GUIDE_TS_VERSION:?Phase 2 must answer GUIDE_TS_VERSION}"
 : "${GUIDE_SKILLS_VERSION:?Phase 2 must answer GUIDE_SKILLS_VERSION}"
-: "${GUIDE_TNB:?Phase 2 must answer GUIDE_TNB (yes for vue-ts/svelte-ts, else no)}"
-: "${GUIDE_TNB_VERSION:?Phase 2 must answer GUIDE_TNB_VERSION}"
+# The bridge is optional and its default is the documented one ("yes for vue-ts/svelte-ts, else
+# no"), so it is read with a default and asserted only where it changes something: a framework that
+# needs it is refused by the profile guard without it, and its pin is required below when it is yes.
+GUIDE_TNB=${GUIDE_TNB:-no}
 case "$GUIDE_TNB" in
   yes|no) : ;;
   *) echo "GUIDE_TNB must be yes or no, got '$GUIDE_TNB'" >&2; exit 1 ;;
 esac
+if [ "$GUIDE_TNB" = yes ]; then
+  tnb_version=${GUIDE_TNB_VERSION:-}
+  [ -n "$tnb_version" ] || { echo "GUIDE_TNB=yes pins the bridge, so Phase 2 must answer GUIDE_TNB_VERSION" >&2; exit 1; }
+fi
 
 # The server foundation belongs to the modes that have a server. It is read with a default so a
 # frontend run does not have to answer it, and required in the modes that do.
@@ -447,7 +468,7 @@ esac
 if [ "$GUIDE_TNB" = yes ]; then
   echo "note: the TypeScript bridge is in use — tsc --version prints 6.0.3, the classic API's version, and must never be used to assert the TypeScript version"
 fi
-echo "ok  pinned: vite-plus $GUIDE_VP_VERSION (prerelease), TypeScript $GUIDE_TS_VERSION, skills $GUIDE_SKILLS_VERSION, bridge $GUIDE_TNB_VERSION"
+echo "ok  pinned: vite-plus $GUIDE_VP_VERSION (prerelease), TypeScript $GUIDE_TS_VERSION, skills $GUIDE_SKILLS_VERSION, bridge ${GUIDE_TNB_VERSION:-not used}"
 if [ -n "$nitro_pin" ]; then
   echo "ok  the server foundation is pinned: nitro $nitro_pin (prerelease, no stable v3 line to fall back to)"
 fi
@@ -474,6 +495,7 @@ set -euo pipefail
 : "${GUIDE_LAYOUT:?Phase 1 must answer GUIDE_LAYOUT}"
 : "${GUIDE_FRAMEWORK:?Phase 1 must answer GUIDE_FRAMEWORK}"
 : "${GUIDE_VP_VERSION:?Phase 2 must answer GUIDE_VP_VERSION}"
+: "${GUIDE_PM:?Phase 1 must answer GUIDE_PM}"
 
 case "$GUIDE_PM" in
   pnpm) dlx() { pnpm dlx "$@"; } ;;
@@ -558,7 +580,15 @@ broken one.
 set -euo pipefail
 : "${GUIDE_LAYOUT:?Phase 1 must answer GUIDE_LAYOUT}"
 : "${GUIDE_TS_VERSION:?Phase 2 must answer GUIDE_TS_VERSION}"
-: "${GUIDE_TNB:?Phase 2 must answer GUIDE_TNB (yes when the framework checker needs the TS 6 API)}"
+# Read with its documented default and exported for the script below: whether the bridge is in use
+# decides which spec `typescript` gets, and a shape that never needs the bridge (every backend and
+# workspace shape) should not have to answer the question to find that out.
+GUIDE_TNB=${GUIDE_TNB:-no}
+export GUIDE_TNB
+case "$GUIDE_TNB" in
+  yes|no) : ;;
+  *) echo "GUIDE_TNB must be yes or no, got '$GUIDE_TNB'" >&2; exit 1 ;;
+esac
 
 node --input-type=module - <<'NODE'
 import { readFileSync, writeFileSync } from "node:fs";
@@ -661,6 +691,12 @@ equals the default, for instance. Delete what is redundant, keep what has an eff
 "it looks like a default" as a hypothesis to test, never as permission: a green `vp check`
 means nothing if the configuration that made it type-aware is gone.
 
+The control below proves that about one configuration — the one this step trims, which is the one
+the frontend and the workspace layouts ship. It is **not** inherited by the two server shapes: the
+backend and SSR sections below replace `tsconfig.json` with a merged program, and each of them runs
+the same control again (plant a `TS2322`, require it to be caught, remove the probe) against the
+configuration it just wrote. The claim travels only where the control ran.
+
 ```bash guide:exec id=config-trim
 set -euo pipefail
 
@@ -705,6 +741,10 @@ mkdir -p "$probe_dir"
 
 # Control 1 - the type checker is alive. Plant a type error; a check that still passes is a
 # check that never looked. This is the only reason to believe the config trim above was safe.
+# The probe is removed on every exit path, not only the happy one: a step that stops here would
+# otherwise leave a planted type error behind, and in three of these steps that file sits where the
+# server scans for routes (see the same control in the backend, SSR and workspace sections).
+trap 'rm -f "$probe_dir/__guide_probe.ts"' EXIT
 printf 'export const __guideProbe: number = "not a number";\n' > "$probe_dir/__guide_probe.ts"
 vp_run fmt > /dev/null
 if vp_run check > .vite-plus-control.log 2>&1; then
@@ -722,6 +762,7 @@ rm -f "$probe_dir/__guide_probe.ts" .vite-plus-control.log
 # Control 2 - the alias resolves in the type checker, not only in the bundler. A wrong
 # `imports` shape (for example {"#*": "./*"}) leaves dev and build green and reports TS2307
 # on every aliased import, so prove the positive case instead of assuming it.
+trap 'rm -f "$probe_dir/__guide_alias_target.ts" "$probe_dir/__guide_alias_use.ts"' EXIT
 cat > "$probe_dir/__guide_alias_target.ts" <<'TS'
 export const aliasProbe = "imports-alias-resolves";
 TS
@@ -818,13 +859,25 @@ if (monorepo) {
 NODE
 
 if [ "$GUIDE_LAYOUT" = monorepo ]; then
-  # The monorepo layout has one command for dependencies, and it is the project's own toolchain:
-  # `vp install` runs the package manager the workspace pins, over the whole workspace. No pnpm
-  # command appears in this shape's flow (the ephemeral `vp create` bootstrap above is the one
-  # place a package manager is invoked, because the project did not exist yet).
-  ./node_modules/.bin/vp install
-  resolved=$(node -p 'require("./apps/website/node_modules/typescript/package.json").version')
-  echo "ok  workspace dependencies installed; typescript resolves to $resolved in apps/website"
+  # The workspace is already installed here: `vp create vite:monorepo` installs what it writes, and
+  # the manifest step above left the catalog alone (TypeScript belongs to it), so an `vp install` at
+  # this point is a no-op — measured: `Already up to date … Done in 13ms`. The installs this layout
+  # still runs are the ones that follow a manifest change: the workspace skeleton, after it extends
+  # the catalog, and the proxy steps, after they add their transformer.
+  #
+  # What is asserted here is the shape-independent half: the project's own toolchain exists, and
+  # typescript resolves in the workspace. Naming `apps/website/node_modules/typescript` would assert
+  # a fact about a package the backend workspace deletes later in the same run.
+  [ -x ./node_modules/.bin/vp ] || { echo "the workspace has no project toolchain at ./node_modules/.bin/vp" >&2; exit 1; }
+  resolved=""
+  for package in apps/website packages/utils .; do
+    if [ -f "$package/node_modules/typescript/package.json" ]; then
+      resolved=$(node -p "require('./$package/node_modules/typescript/package.json').version")
+      break
+    fi
+  done
+  [ -n "$resolved" ] || { echo "typescript did not resolve in any package of this workspace" >&2; exit 1; }
+  echo "ok  workspace dependencies are installed (vp create installed them); typescript resolves to $resolved"
 else
   case "$GUIDE_PM" in
     pnpm) pnpm install --no-frozen-lockfile ;;
@@ -1059,6 +1112,7 @@ NODE
 # The merged tsconfig exists so that the server is type-checked, so that is proved rather than
 # trusted: a planted type error inside a route has to turn `vp check` red. Without this, a
 # tsconfig that quietly excluded server/ would leave every later `vp check` green and blind.
+trap 'rm -f server/routes/__guide_probe.ts' EXIT
 printf 'export const __guideServerProbe: number = "not a number";\n' > server/routes/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null   # a formatting complaint would short-circuit the check
 if ./node_modules/.bin/vp check > .vite-plus-server-control.log 2>&1; then
@@ -1418,6 +1472,7 @@ NODE
 # Both halves of the merged program are proved, not trusted: a planted type error in src/ and one
 # in server/routes/api/ each have to turn `vp check` red. A tsconfig that quietly covered only one
 # half would leave every later `vp check` green and blind there.
+trap 'rm -f src/__guide_probe.ts' EXIT
 printf 'export const __guideClientProbe: number = "not a number";\n' > src/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null
 if ./node_modules/.bin/vp check > .vite-plus-client-control.log 2>&1; then
@@ -1432,6 +1487,7 @@ grep -q 'TS2322' .vite-plus-client-control.log || {
 rm -f src/__guide_probe.ts .vite-plus-client-control.log
 echo "ok  a planted type error in src/ was caught (TS2322)"
 
+trap 'rm -f server/routes/api/__guide_probe.ts' EXIT
 printf 'export const __guideServerProbe: number = "not a number";\n' > server/routes/api/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null
 if ./node_modules/.bin/vp check > .vite-plus-server-control.log 2>&1; then
@@ -1537,7 +1593,10 @@ set -euo pipefail
 : "${GUIDE_MODE:?Phase 1 must answer GUIDE_MODE}"
 : "${GUIDE_LAYOUT:?Phase 1 must answer GUIDE_LAYOUT}"
 : "${GUIDE_TS_VERSION:?Phase 2 must answer GUIDE_TS_VERSION}"
-: "${GUIDE_TNB:?Phase 2 must answer GUIDE_TNB}"
+# Same default as everywhere else the bridge is read: a monorepo app is the template's `vanilla-ts`
+# app, so no monorepo shape needs the bridge, and the question should not be a requirement here.
+GUIDE_TNB=${GUIDE_TNB:-no}
+export GUIDE_TNB
 : "${GUIDE_PLACEHOLDER:?Phase 1 must answer GUIDE_PLACEHOLDER}"
 
 # What this mode puts in the workspace, as the two facts every later step reads: whether a server
@@ -1713,6 +1772,10 @@ for (const key of Object.keys(manifest)) if (!(key in ordered)) ordered[key] = m
 writeFileSync(file, JSON.stringify(ordered, null, 2) + "\n");
 NODE
     echo "ok  placeholder package kept and pruned (publishing shape removed, versions in the catalog)"
+    ;;
+  *)
+    echo "the placeholder decision must be yes or no, got '$GUIDE_PLACEHOLDER'" >&2
+    exit 1
     ;;
 esac
 
@@ -1992,6 +2055,7 @@ NODE
 # The server's own code is type-checked, which is the claim the merged program makes in the other
 # server profiles. It cannot be inherited from them: here the server is the root's own program,
 # and the whole workspace is what the root check walks.
+trap 'rm -f server/routes/__guide_probe.ts' EXIT
 printf 'export const __guideServerProbe: number = "not a number";\n' > server/routes/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null
 if ./node_modules/.bin/vp check > .vite-plus-server-control.log 2>&1; then
@@ -2010,6 +2074,7 @@ echo "ok  a planted type error in server/routes was caught (TS2322)"
 # cover it, because the app has no `check` script of its own for `vp run -r check` to run. Only the
 # split shape has an app; a backend workspace deleted it above.
 if [ "$GUIDE_MODE" = fullstack ]; then
+trap 'rm -f apps/website/src/__guide_probe.ts' EXIT
 printf 'export const __guideAppProbe: number = "not a number";\n' > apps/website/src/__guide_probe.ts
 ./node_modules/.bin/vp fmt > /dev/null
 if ./node_modules/.bin/vp check > .vite-plus-app-control.log 2>&1; then
@@ -2026,6 +2091,7 @@ echo "ok  a planted type error in apps/website/src was caught (TS2322)"
 
 # And the app's own alias map, in the app's program: the app's tsc runs inside `vp run -r build`,
 # so this proves the map resolves for the build script too, not only for the root check.
+trap 'rm -f apps/website/src/__guide_alias_target.ts apps/website/src/__guide_alias_use.ts' EXIT
 cat > apps/website/src/__guide_alias_target.ts <<'TS'
 export const aliasProbe = "imports-alias-resolves";
 TS
@@ -2226,11 +2292,10 @@ case "$GUIDE_MODE" in
     # The split shape's backend is this workspace's own root server, so the target is written from
     # its port rather than asked for. Change that port in one place and this file follows — a target
     # on a port nothing listens on answers 502, which is the loud half of getting it wrong.
-    # (Read with a default and required inside this branch: a frontend workspace has no root server,
-    # so it never answers this, and the extractor requires every `$GUIDE_…` named without a default
-    # to have been answered in every profile that runs the step.)
-    dev_port_answer=${GUIDE_DEV_PORT:-}
-    [ -n "$dev_port_answer" ] || { echo "the split shape needs GUIDE_DEV_PORT (the port the workspace root server binds)" >&2; exit 1; }
+    # (Read with a default, like the `ports` step and the verification step: a root server that was
+    # not told a port keeps Nitro's default of 3000, so this target follows that default instead of
+    # demanding an answer a frontend workspace never needs.)
+    dev_port_answer=${GUIDE_DEV_PORT:-3000}
     dev_proxy_answer="http://127.0.0.1:${dev_port_answer}"
     proxy_target="the workspace root server"
     ;;
@@ -2345,6 +2410,81 @@ NODE
 ./node_modules/.bin/vp check
 echo "ok  dev proxy wired in apps/website: /api/* -> $dev_proxy_answer with the prefix stripped"
 ```
+### Write each dev server's port into the configuration
+
+Where a dev server binds is configuration, not a flag. The port the answers name is written once,
+here, into the `vite.config.ts` that owns each server — so the verification step, the user's first
+`vp dev`, and every later command agree, and nothing has to carry `--port`. The toolchain resolves a
+port in this order: `PORT` in the environment (the running process), then Vite's `server.port`, then
+Nitro's own `devServer.port` (default `3000`) — which is why one `server: { port, strictPort: true }`
+per config file is enough for every shape. `strictPort` is the loud half: without it a busy port
+moves the server silently and the smoke test would read a stranger.
+
+```bash guide:exec id=ports
+set -euo pipefail
+: "${GUIDE_MODE:?Phase 1 must answer GUIDE_MODE}"
+: "${GUIDE_LAYOUT:?Phase 1 must answer GUIDE_LAYOUT}"
+
+if [ "$GUIDE_LAYOUT" = monorepo ]; then
+  root_port=${GUIDE_DEV_PORT:-3000}   # a root server keeps Nitro's default in this layout
+  app_port=${GUIDE_WEBSITE_PORT:-5173}
+else
+  root_port=${GUIDE_DEV_PORT:-5173}   # Vite's own default; override only to dodge a busy port
+  app_port=""
+fi
+export GUIDE_MODE GUIDE_LAYOUT ROOT_PORT="$root_port" APP_PORT="$app_port"
+
+node --input-type=module - <<'NODE'
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
+const fail = (message) => { console.error(message); process.exit(1); };
+// The port is added to the server block in place when the proxy steps already wrote one (the
+// single frontend's root config and the workspace layouts' app config), and as a new key of the
+// exported config otherwise. Indentation is copied from the block, so the file is already the shape
+// `vp fmt` would produce.
+const patch = (file, port) => {
+  const source = readFileSync(file, "utf8");
+  if (/\bport:\s*\d+/.test(source)) fail(`${file} already names a port; this step writes it once`);
+  const block = /^([ \t]*)server:\s*\{\s*$/m.exec(source);
+  if (block) {
+    const at = source.indexOf(block[0]) + block[0].length;
+    const next = /^([ \t]*)\S/m.exec(source.slice(at));
+    const indent = next ? next[1] : `${block[1]}  `;
+    writeFileSync(file, `${source.slice(0, at)}\n${indent}port: ${port},\n${indent}strictPort: true,${source.slice(at)}`);
+    return;
+  }
+  const close = source.lastIndexOf("});");
+  if (close < 0) fail(`${file} does not end with "});" — inspect it before adding a server block`);
+  writeFileSync(file, `${source.slice(0, close)}  server: {\n    port: ${port},\n    strictPort: true,\n  },\n${source.slice(close)}`);
+};
+
+const rootIsServer = process.env.GUIDE_LAYOUT === "single" || process.env.GUIDE_MODE !== "frontend";
+if (rootIsServer) patch("vite.config.ts", process.env.ROOT_PORT);
+if (process.env.APP_PORT && existsSync("apps/website/vite.config.ts")) patch("apps/website/vite.config.ts", process.env.APP_PORT);
+NODE
+
+./node_modules/.bin/vp fmt
+
+# Assert on the files, not on the patch having run: the verification step starts every dev server
+# with no port flag, so a port that did not land would show up as a server on the wrong port, or as
+# no server at all, several minutes later.
+node --input-type=module - <<'NODE'
+import { existsSync, readFileSync } from "node:fs";
+const check = (file, port) => {
+  const source = readFileSync(file, "utf8");
+  if (!new RegExp(`(^|\\s)port:\\s*${port},`).test(source)) { console.error(`${file} does not carry port: ${port}`); process.exit(1); }
+  if (!/(^|\s)strictPort:\s*true,/.test(source)) { console.error(`${file} does not carry strictPort: true`); process.exit(1); }
+};
+const rootIsServer = process.env.GUIDE_LAYOUT === "single" || process.env.GUIDE_MODE !== "frontend";
+const appConfig = process.env.APP_PORT && existsSync("apps/website/vite.config.ts");
+if (rootIsServer) check("vite.config.ts", process.env.ROOT_PORT);
+if (appConfig) check("apps/website/vite.config.ts", process.env.APP_PORT);
+console.log(`${rootIsServer ? `port ${process.env.ROOT_PORT} in the root config` : "no root dev server in this shape"}${appConfig ? `; port ${process.env.APP_PORT} in apps/website` : ""}`);
+NODE
+
+echo "ok  dev server ports are in the configuration: no command needs --port"
+```
+
 ## Phase 4 — Agent skills (automatic, then verified)
 
 Install the promoted skill set from the toolkit's upstream repository. The set is resolved
@@ -2355,8 +2495,9 @@ declares, whatever that set is today.
 
 The install command has a trap worth naming: `skills` 1.7.0 only understands the bare
 `--skill` token. Its own documentation shows `--skill=<name>`, which the parser ignores, so
-the CLI installs all 38 skills and exits 0. The exit code is not evidence here — the lockfile's
-name set is.
+the CLI installs every skill in the repository — whatever the upstream manifest declares that day,
+not a number written here — and exits 0. The exit code is not evidence here: the lockfile's name
+set is.
 
 ```bash guide:exec id=skills
 set -euo pipefail
@@ -3574,15 +3715,27 @@ staged=$(find "$stage" -maxdepth 1 -name '*.md' | wc -l)
 # Install, never overwrite: a document already at the landing point is somebody else's decision,
 # and an inherited document is not allowed to replace one. This is the rule the setup flow follows
 # for the brief as well — a file that already has a section is edited where it is.
+#
+# The whole set is checked *before* anything is copied, and that order is the point: an install that
+# copies until it meets a conflict leaves a half-landed directory, and the only recovery it could
+# offer ("resolve the conflict and re-run") would then fail again on the files it had just put
+# there. Validate all, then copy all.
 mkdir -p "$adr_dir"
+conflicts=()
+for file in "$stage"/*.md; do
+  name=$(basename "$file")
+  if [ -e "$adr_dir/$name" ]; then conflicts+=("$adr_dir/$name"); fi
+done
+if [ "${#conflicts[@]}" -gt 0 ]; then
+  echo "$adr_dir is not empty where the inherited ADRs have to land: nothing was copied." >&2
+  printf '  %s already exists\n' "${conflicts[@]}" >&2
+  echo "read each one, keep whichever version is right (move the other aside), and re-run this step" >&2
+  exit 1
+fi
+
 landed=0
 for file in "$stage"/*.md; do
   name=$(basename "$file")
-  if [ -e "$adr_dir/$name" ]; then
-    echo "$adr_dir/$name already exists; the inherited ADRs never overwrite a document that is" >&2
-    echo "already there — read it, keep whichever version is right, and re-run this step" >&2
-    exit 1
-  fi
   cp "$file" "$adr_dir/$name"
   # Prove the landing instead of trusting the copy: byte-identical, at the resolved directory.
   cmp -s "$file" "$adr_dir/$name" || { echo "$adr_dir/$name does not match the inherited document $file" >&2; exit 1; }
@@ -3629,11 +3782,13 @@ catch it; an entry that cannot answer that second question is a fact to delete, 
 
 ## Versions
 
-- TypeScript is 7.x (`^7.0.2`); `tsc --version` prints `7.0.2`.
+- TypeScript is the 7.x line. The pin this project actually resolved is the one
+  `docs/provenance.md` records (`^7.0.2` when this guide's own default was answered) — read it
+  there rather than assuming it here.
 - If this project uses the TypeScript 6 API bridge (`typescript-native-bridge`, needed by
-  `vue-tsc` and friends), `tsc --version` prints `6.0.3` while the package version carries
-  `-bridge…`. Never assert the TypeScript version from that string; check the resolved package
-  instead.
+  `vue-tsc` and friends), `tsc --version` prints the classic API's version (6.0.3 for the bridge
+  this guide pins) while the package version carries `-bridge…`. Never assert the TypeScript
+  version from that string; check the resolved package instead.
 - `vite-plus` is a devDependency, never a global install. `vp env`, `vp upgrade` and
   `vp implode` do not exist in a project-local setup — the tool's own instructions suggest
   `vp env doctor`, which is one of them.
@@ -3751,7 +3906,10 @@ cat >> docs/agent-notes.md <<'NOTES'
 - v3 has no auto-imports: handlers import `defineHandler` from `nitro` explicitly, and types
   come from the package's own exports (`nitro`, `nitro/h3`, `nitro/types`).
 - The dev server's default port comes from Nitro (`3000`), not from Vite (`5173`), once the
-  plugin is in play. Pass `--port` when the port matters.
+  plugin is in play. This project does not depend on either default: every dev server's port is
+  written into its own `vite.config.ts` as `server: { port, strictPort: true }`, and `PORT` in the
+  environment still wins for a running process. Change the port there, in one place, rather than on
+  a command line.
 - The production artefact is `node dist/server/index.mjs` (the `PORT` environment variable is
   honoured by the node-server preset); the Nitro CLI is not needed to run it.
 - With the plugin wired, `vp test` ends with `close timed out after 10000ms … Tests closed
@@ -4180,8 +4338,9 @@ else
   negotiated its domain-doc convention and the inherited ADRs took the guide's default landing
   point — an assumption, not a decision. When a convention does arrive, run
   `/setup-matt-pocock-skills` (or write `docs/agents/domain.md` yourself) and move the ADRs to the
-  directory it names; the three documents that carry the directory are `AGENTS.md` (the closing
-  line of the constraints), `docs/agent-notes.md` (its header) and this file.
+  directory it names. Two documents carry the directory — `AGENTS.md` (the closing line of the
+  constraints) and this file — and `docs/agent-notes.md` points at this record rather than naming a
+  path of its own.
 
 ASSUMPTIONS
 )
@@ -4263,8 +4422,10 @@ Start here before changing code: the version table above is the shortest path to
 documentation, and \`docs/agent-notes.md\` lists the failures that are known to be silent.
 PROVENANCE
 
-rm -f .vite-plus-create.log .vite-plus-skills.log .vite-plus-skill-names .vite-plus-skills-commit .vite-plus-adr-dir .vite-plus-adr-source \
-  .vite-plus-prov-choice .vite-plus-prov-scaffold .vite-plus-prov-server .vite-plus-prov-verify
+# Every `.vite-plus-*` file goes, not a list: the scratch convention is the prefix, and a list is
+# one edit away from leaving a file behind (the probes' control logs are the ones that used to
+# survive a failure). `-r` because one of them is a directory when a run stops before adr-land.
+rm -rf .vite-plus-*
 echo "ok  docs/provenance.md written"
 ```
 
@@ -4918,14 +5079,15 @@ if [ "$GUIDE_LAYOUT" = monorepo ]; then
   # The dev servers are the packages this arrangement has: the root (the dev form of the artefact
   # above) when the root is an application, and the app where there is one. The proxy chain only
   # exists while both ends are up, so when both exist they are started together and the smoke reads
-  # the app's port.
+  # the app's port. No port flag: each server's port is in its own config (the `ports` step), which
+  # is also what the user's own `vp dev` will read.
   if [ "$has_server" = yes ]; then
-    $VP dev --port "$dev_port" --strictPort > server-dev.log 2>&1 &
+    $VP dev > server-dev.log 2>&1 &
     dev_pid=$!
     wait_ready "http://127.0.0.1:$dev_port/hello" server-dev.log
   fi
   if [ "$has_app" = yes ]; then
-    $VP -C apps/website dev --port "$website_port" --strictPort > website-dev.log 2>&1 &
+    $VP -C apps/website dev > website-dev.log 2>&1 &
     website_pid=$!
     wait_ready "http://127.0.0.1:$website_port/" website-dev.log
   fi
@@ -4938,7 +5100,7 @@ if [ "$GUIDE_LAYOUT" = monorepo ]; then
     smoke "http://127.0.0.1:$dev_port" "dev server (workspace root)"
   fi
 else
-  $VP dev --port "$dev_port" --strictPort > dev.log 2>&1 &
+  $VP dev > dev.log 2>&1 &
   dev_pid=$!
   wait_ready "http://127.0.0.1:$dev_port/" dev.log
   smoke "http://127.0.0.1:$dev_port" "dev server"
