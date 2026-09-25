@@ -22,6 +22,8 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { readAnswers } from "./lib/answers.mjs";
+import { discoverProfiles } from "./lib/profiles.mjs";
 
 const args = { workdir: "e2e/.work", out: "docs/verification.md", manifest: null, root: null };
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -40,11 +42,7 @@ for (let i = 2; i < process.argv.length; i += 1) {
 const repoRoot = args.root ?? join(import.meta.dirname, "..");
 const relative = (path) => path.replace(`${repoRoot}/`, "");
 const resolve = (path) => (path.startsWith("/") ? path : join(repoRoot, path));
-const profilesDir = join(repoRoot, "e2e", "profiles");
-const profiles = readdirSync(profilesDir)
-  .filter((name) => name.endsWith(".env"))
-  .map((name) => name.slice(0, -4))
-  .sort();
+const profiles = discoverProfiles(repoRoot).map((profile) => profile.name);
 
 const workdir = resolve(args.workdir);
 const runsDir = join(workdir, "runs");
@@ -102,23 +100,21 @@ for (const profile of profiles) {
   }
   const runDir = relative(dir);
   // No verdict file means the run never settled (killed, or stopped before the harness could
-  // write one): the record says `stopped`, never the older run's green.
-  const result = Object.fromEntries(
-    (existsSync(join(dir, "result.env")) ? readFileSync(join(dir, "result.env"), "utf8") : "")
-      .split("\n")
-      .filter((line) => line.includes("="))
-      .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
-  );
+  // write one): the record says `stopped`, never the older run's green. Both files are read through
+  // the one answers reader — an inline `split("=")` kept the quotes and the padding of a quoted
+  // value, which is how the same answer read differently here and in every other module.
+  const readEnvFile = (name) => {
+    const path = join(dir, name);
+    return existsSync(path) ? readAnswers(path) : {};
+  };
+  const result = readEnvFile("result.env");
   const log = logOf(profile);
   const provenancePath = join(dir, "target", "docs", "provenance.md");
   const provenance = existsSync(provenancePath) ? readFileSync(provenancePath, "utf8") : "";
-  const answersPath = join(dir, "answers.env");
-  const answers = Object.fromEntries(
-    (existsSync(answersPath) ? readFileSync(answersPath, "utf8") : "")
-      .split("\n")
-      .filter((line) => line.includes("=") && !line.startsWith("#"))
-      .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
-  );
+  const answers = readEnvFile("answers.env");
+  // What the run's own assertion layer computed, as fields (`assert.mjs --summary`). A run
+  // directory from before that flag carries no summary, and the log scrape below still reads it.
+  const summary = readEnvFile("assert.env");
   const started = /runs\/(\d{8}-\d{6})-(.+)$/.exec(dir);
   const seconds =
     started && result.finished
@@ -139,8 +135,11 @@ for (const profile of profiles) {
     placeholder: answers.GUIDE_PLACEHOLDER ?? "—",
     run: runDir,
     seconds,
-    checks: countOf(log, /(\d+) checks, (\d+) failure/),
-    coverage: countOf(log, /(\d+) source items landed \(\d+ rows\), (\d+) shipped bullets claimed/),
+    checks: summary.checks !== undefined ? `${summary.checks}/${summary.failures}` : countOf(log, /(\d+) checks, (\d+) failure/),
+    coverage:
+      summary.items !== undefined
+        ? `${summary.items}/${summary.bullets}`
+        : countOf(log, /(\d+) source items landed \(\d+ rows\), (\d+) shipped bullets claimed/),
     vp: provenanceRow(provenance, "vite-plus"),
     typescript: provenanceRow(provenance, "TypeScript"),
     nitro: provenanceRow(provenance, "nitro"),

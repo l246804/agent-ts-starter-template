@@ -57,7 +57,10 @@ actually happened, and exits non-zero unless every profile passed.
   app as the only application with its own `dist/`, a command set without `dev:server`/`test`/
   `build`, and its proxy target — the answered backend, or the placeholder when nothing was
   answered — wired in `apps/website` with the same guard.
-- **A check that cannot fail is not a check.** The negative controls make the preflight refuse
+- **A check that cannot fail is not a check.** The guard's *accepted* set is asserted the same way
+  as its refusals — by running it: `run.sh` executes the extracted `profile-guard` step once per
+  (形态, 布局) `e2e/lib/shape.mjs` accepts and requires each to be accepted and to say so. The
+  negative controls make the preflight refuse
   a non-empty target and an old Node (a `node` shim on `PATH` reports `v24.13.0`), make the
   profile guard refuse an unimplemented mode, a backend project on a framework base, an
   SSR project on a plain base, a split project on a base the monorepo template does not write,
@@ -88,10 +91,10 @@ actually happened, and exits non-zero unless every profile passed.
   intact.
 - **Both branches of the setup decision point (Phase 4.5) are run, by the profiles themselves.**
   `frontend-single` answers `yes` — with a GitHub tracker and a convention whose ADR directory is
-  not the guide's default — and the other eight answer `no`. So one end-to-end run proves the flow's
+  not the guide's default — and every other profile answers `no`. So one end-to-end run proves the flow's
   writes (the skill's seed files, the `## Agent skills` brief in `AGENTS.md`), the ADR landing point
   that comes out of the convention, and the provenance sentence that records the convention as the
-  source; the other eight prove the deferred branch (no `docs/agents/`, no brief, the default landing
+  source; the others prove the deferred branch (no `docs/agents/`, no brief, the default landing
   point recorded as an assumption). The controls then prove what no single pass can: the guard refuses a `yes` whose
   questions were never answered and the one answer no step can write (`other`, the user's own
   paragraph); the landing point follows a *planted* convention that disagrees with the answer — in
@@ -101,7 +104,9 @@ actually happened, and exits non-zero unless every profile passed.
   flow's other answers (a local tracker, the default ADR directory, then a GitLab switch that also
   records the multi-context layout) run once each in a scratch project, where the re-run regenerates
   the skill's generated files and a section the flow never wrote comes through untouched.
-- **Profiles are explicit.** A profile is a pre-answered answers file plus assertions;
+- **Profiles are explicit.** A profile is a pre-answered answers file plus assertions, and the set
+  is discovered in one place (`e2e/lib/profiles.mjs`, read by the runner, the record and the
+  coverage table);
   `frontend/single`, `backend/single`, `fullstack/single`, `fullstack/monorepo`,
   `fullstack/monorepo-placeholder-no`, `backend/monorepo`, `backend/monorepo-placeholder-no`,
   `frontend/monorepo` and `frontend/monorepo-placeholder-yes` have both, and `assert.mjs` fails
@@ -116,12 +121,25 @@ actually happened, and exits non-zero unless every profile passed.
   claimed by a row (no text without a source item — bullets, prose paragraphs and headings alike,
   so a sentence added to a shipped section fails too); the shape filter is inside both directions,
   so trimming is proved rather than assumed. `node e2e/coverage.mjs --self-check` proves the table
-  itself — every master-list item ships or is declared not-shipped, every id exists, every marker
-  is a fragment of the guide's own text — and `run.sh` runs it before the first step.
+  itself — every master-list item ships or is declared not-shipped, every id exists and is declared
+  once, every marker is a fragment of the guide's own text, the profile guard implements exactly the
+  shapes `e2e/lib/shape.mjs` accepts (both directions), every profile is named *as itself* in
+  `GUIDE.md` and in this file, and the profile count those two state in prose is the set's own — and
+  `run.sh` runs it before the first step. A boundary's id is **declared in the item**
+  (`- ⚠️ **B13** …`), never counted from its position: a counted id cannot be read back, so deleting
+  one bullet used to renumber every later id and re-point every row that names one without a single
+  failure.
+- **One module owns the shape.** `e2e/lib/shape.mjs` derives 形态 × 布局 and the facts that follow
+  from the pre-answered answers — once, for the coverage table's `when` filter, `assert.mjs`, and
+  `run.sh`'s control gates. The guide's own `when=` markers stay the extractor's business
+  (ADR-0006). Its interface is a pure function, which is also the one part of the harness that can
+  be exercised without a run.
 - **One full pass is one artifact.** `bash e2e/matrix.sh` runs every profile, then
   `e2e/record.mjs` rewrites `docs/verification.md` from the runs' own results, logs and produced
   provenance — the record cannot claim more than those runs prove, and a profile that is missing
-  or not `PASS` is written as such and makes the command exit non-zero.
+  or not `PASS` is written as such and makes the command exit non-zero. A run's own numbers reach
+  the record as fields (`assert.mjs --summary` writes `<run-dir>/assert.env`); the log it used to
+  print them into is the fallback for a run directory that predates them.
 
 ## What it deliberately does not do
 
@@ -198,8 +216,8 @@ mechanical half; the guide is written for the half that needs judgement:
 
 ## The nine profiles
 
-The three modes and the two layouts give six (mode, layout) combinations, and the layout's
-placeholder decision doubles the three monorepo ones: **every arrangement is run both ways the
+The modes and the layouts give the (mode, layout) combinations `e2e/lib/shape.mjs` accepts, and the
+layout's placeholder decision doubles the monorepo ones: **every arrangement is run both ways the
 decision can go**, so a branch that has never been built cannot hide behind its sibling.
 
 | Profile | What it initializes | The stub it needs |
@@ -224,7 +242,7 @@ TypeScript line is the stated fact rather than a version read out of a package.
 
 The setup decision point is run once per branch the same way: `frontend-single` is the `yes`
 profile (with a convention whose ADR directory is not the guide's default, so the landing point is
-proven to come from the project), and the other eight are the `no` profiles. The sub-answers no
+proven to come from the project), and every other profile is a `no` profile. The sub-answers no
 profile takes are run once each by that profile's controls, in a scratch project that has the
 installed skill's seeds: a `local` tracker, the default ADR directory, then a `gitlab` switch that
 also records the `multi` layout. The one answer nothing runs is `other`, whose file is the user's

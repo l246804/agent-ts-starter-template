@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# --- usage
 # E2E harness: run GUIDE.md from zero, end to end, and assert what it produced.
 #
 #   ./e2e/run.sh [--profile <name>] [--workdir <dir>]
@@ -26,7 +27,8 @@
 #      error, the proxy-bearing profiles' missing DEV_PROXY config must fail loudly instead
 #      of serving the app's HTML, and — in the SSR profile — a planted index.html must stop
 #      being a silent client-shell degradation and a removed render mark must be what the
-#      smoke notices.
+#      smoke notices. The guard's positive half is asserted the same way: it is run once per
+#      (形态, 布局) this revision implements and has to accept each one.
 #   7. runs the setup decision point's controls: the guard must refuse a `yes` with no answers
 #      and the one answer no step can write (`other`); the ADR landing point must come from the
 #      project's convention — including the skill's own annotated-tree shape — with a planted
@@ -46,6 +48,7 @@
 # What it is NOT: a replacement for an agent reading GUIDE.md. The guide's decision
 # points are pre-answered here, and the parts that need judgement are listed in
 # e2e/README.md.
+# --- end usage
 set -euo pipefail
 
 E2E_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -57,7 +60,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --profile) PROFILE_NAME="$2"; shift 2 ;;
     --workdir) WORK_ROOT="$2"; shift 2 ;;
-    --help) sed -n '2,47p' "$0"; exit 0 ;;
+    --help) sed -n '/^# --- usage$/,/^# --- end usage$/p' "$0" | sed '1d;$d'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -108,6 +111,87 @@ require_tools() {
   done
   command -v "${GUIDE_PM:-pnpm}" >/dev/null 2>&1 || die "the harness needs the profile's package manager (${GUIDE_PM:-pnpm}) on PATH"
   [ -z "$(ls -A "$TARGET")" ] || die "the harness's own target directory is not empty: $TARGET"
+}
+
+# --------------------------------------------------------------- the shape module's one interface
+# 形态 × 布局 and the facts that follow from them are derived in `e2e/lib/shape.mjs` — one module,
+# read by the coverage table, by `e2e/assert.mjs` and here. The gates below ask it instead of
+# comparing raw answers, which is what used to let the same fact be spelled three ways in three
+# files. The guide keeps its own gates: `GUIDE.md`'s `when=` markers are the extractor's business
+# (ADR-0006: a step is self-contained text).
+export SHAPE_LIB="$E2E_DIR"
+shape_is() {  # shape_is <fact> — is this run's shape true for that fact?
+  local code=0
+  SHAPE_ANSWERS="$ANSWERS_FILE" SHAPE_FACT="$1" node --input-type=module -e '
+    const { readAnswers } = await import(process.env.SHAPE_LIB + "/lib/answers.mjs");
+    const { shapeOf } = await import(process.env.SHAPE_LIB + "/lib/shape.mjs");
+    const shape = shapeOf(readAnswers(process.env.SHAPE_ANSWERS));
+    if (!Object.hasOwn(shape, process.env.SHAPE_FACT)) {
+      console.error(`shape_is: ${process.env.SHAPE_FACT} is not a fact e2e/lib/shape.mjs derives`);
+      process.exit(2);
+    }
+    process.exit(shape[process.env.SHAPE_FACT] ? 0 : 1);
+  ' || code=$?
+  case "$code" in
+    0) return 0 ;;
+    1) return 1 ;;
+    # A name the module does not derive is a typo, and a typo here would skip a control silently —
+    # the same rule `e2e/lib/shape.mjs` states for its own `when` vocabulary: a name that is not
+    # there has to be a failure, not a gate that quietly never fires.
+    *) die "shape_is $1: the 形状 module derives no such fact (see e2e/lib/shape.mjs; exit $code)" ;;
+  esac
+}
+
+# -------------------------------------------------------------- the profile guard's positive half
+# The negative controls prove the guard refuses what this revision does not implement. The other
+# direction is asserted the same way — by running it. The arms are the 形状 module's accepted set
+# (bound to the guard's own arms by `coverage.mjs --self-check`), and the guard is the guide's own
+# step, run from the extracted plan. The check this replaces read GUIDE.md with a regex over any
+# two-space-indented `mode/layout)` line: 18 lines, across three different `case` statements, so
+# the guard could lose an arm and the check stayed green on a copy inside the verify block.
+guard_accepts() {
+  local guard guard_path rows arm mode layout framework placeholder
+  guard=$(awk -F'\t' '$2 == "exec" && $3 == "profile-guard" { print $4 }' "$PLAN/plan.tsv")
+  [ -n "$guard" ] || die "the plan is missing the profile-guard step"
+  # Absolute, because the guard runs from an empty target directory: `--workdir` may be relative.
+  guard_path="$(cd "$PLAN" && pwd)/$guard"
+  # Each accepted arm comes with the answers a profile of that shape actually uses — its base, and
+  # its placeholder answer where the layout has that decision. Those answers live in the profile
+  # files; spelling them again here would be one more home for a fact that already has one. Where
+  # two profiles run the same shape, either one's answers satisfy the guard, and discovery is
+  # sorted, so which of them is read is stable rather than incidental.
+  rows=$(node --input-type=module -e '
+    const { ACCEPTED } = await import(process.env.SHAPE_LIB + "/lib/shape.mjs");
+    const { discoverProfiles } = await import(process.env.SHAPE_LIB + "/lib/profiles.mjs");
+    const profiles = discoverProfiles(process.env.SHAPE_LIB + "/..");
+    for (const arm of ACCEPTED) {
+      const profile = profiles.find((candidate) => candidate.shape.arm === arm);
+      if (!profile) {
+        console.error(`no profile file runs ${arm}`);
+        process.exit(1);
+      }
+      console.log([arm, profile.answers.GUIDE_FRAMEWORK, profile.answers.GUIDE_PLACEHOLDER ?? ""].join("\t"));
+    }
+  ') || die "the 形状 module accepts no runnable (形态, 布局) — see the error above"
+  mkdir -p "$RUN_DIR/negative/empty-target"
+  say "profile guard: every (形态, 布局) this revision implements is accepted, by running it"
+  while IFS=$'\t' read -r arm framework placeholder; do
+    [ -n "$arm" ] || continue
+    mode=${arm%%/*}
+    layout=${arm##*/}
+    if ! (cd "$RUN_DIR/negative/empty-target" \
+      && GUIDE_MODE="$mode" GUIDE_LAYOUT="$layout" GUIDE_FRAMEWORK="$framework" GUIDE_PLACEHOLDER="$placeholder" \
+        bash "$guard_path") > "$LOGS/guard-$mode-$layout.log" 2>&1; then
+      tail -5 "$LOGS/guard-$mode-$layout.log"
+      die "the profile guard refused $arm, which this revision implements (full log: $LOGS/guard-$mode-$layout.log)"
+    fi
+    grep -q "ok  profile $arm" "$LOGS/guard-$mode-$layout.log" || {
+      tail -3 "$LOGS/guard-$mode-$layout.log"
+      die "the guard accepted $arm without reporting it (see $LOGS/guard-$mode-$layout.log)"
+    }
+    echo "  accepted $arm"
+  done <<< "$rows"
+  [ -z "$(ls -A "$RUN_DIR/negative/empty-target")" ] || die "the guard wrote into the empty target while accepting a profile"
 }
 
 # ---------------------------------------------------------------- proxy target
@@ -555,7 +639,7 @@ FAKE
   # template's own `dev` script is planted back, and assert.mjs has to reject it and name the rule.
   # (In the two workspaces that still have `website` the same plant proves the form ban rather than
   # the deletion; both live under the same rule.)
-  if [ "${GUIDE_LAYOUT:-}" = "monorepo" ]; then
+  if shape_is isMono; then
     say "negative control: a root script naming a package is caught by the package-name rule"
     local root_manifest="$TARGET/package.json"
     cp "$root_manifest" "$RUN_DIR/negative/package.json.bak"
@@ -586,7 +670,7 @@ FAKE
   # It belongs to the profiles that have a proxy in the frontend package, decided by the profile's
   # answers rather than by what the target happens to contain — the same rule every accommodation
   # here follows.
-  if [ "${GUIDE_LAYOUT:-}" = "monorepo" ] && { [ "${GUIDE_MODE:-}" = "fullstack" ] || [ "${GUIDE_MODE:-}" = "frontend" ]; }; then
+  if shape_is hasApp; then
     [ -f "$TARGET/apps/website/.env" ] \
       || die "the $GUIDE_MODE/monorepo profile produced no apps/website/.env, so its negative control cannot run"
     say "negative control: a missing DEV_PROXY fails loudly instead of serving the app's HTML"
@@ -635,8 +719,8 @@ FAKE
   # The SSR controls belong to the SSR profile — decided by the profile's answers, never by what
   # the target happens to contain: a fullstack run whose shape is missing is a failure to report,
   # not a control to skip silently (the same rule the harness applies to every accommodation). The
-  # split shape is `fullstack` too, so the layout is part of the gate.
-  if [ "${GUIDE_MODE:-}" = "fullstack" ] && [ "${GUIDE_LAYOUT:-}" = "single" ]; then
+  # split shape is `fullstack` too, so the shape module's answer is what carries the layout here.
+  if shape_is isSsr; then
     [ -f "$TARGET/src/entry-server.tsx" ] \
       || die "the fullstack profile produced no src/entry-server.tsx, so its negative controls cannot run"
     say "negative control: a planted index.html is not a silent client-shell degradation"
@@ -717,8 +801,11 @@ node "$E2E_DIR/coverage.mjs" --self-check | sed 's/^/  /'
 say "extracting GUIDE.md"
 run_plan
 
+say "profile guard: the accepted set"
+guard_accepts
+
 say "external behaviour: e2e/assert.mjs"
-node "$E2E_DIR/assert.mjs" --target "$TARGET" --answers "$ANSWERS_FILE" | sed 's/^/  /'
+node "$E2E_DIR/assert.mjs" --target "$TARGET" --answers "$ANSWERS_FILE" --summary "$RUN_DIR/assert.env" | sed 's/^/  /'
 
 say "negative controls"
 negative_controls

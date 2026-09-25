@@ -17,19 +17,22 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readAnswers } from "./lib/answers.mjs";
+import { shapeOf } from "./lib/shape.mjs";
+import { escapeRegExp } from "./lib/text.mjs";
 import { audit as auditCoverage } from "./coverage.mjs";
 
-const args = { target: null, answers: null };
+const args = { target: null, answers: null, summary: null };
 for (let i = 2; i < process.argv.length; i += 1) {
   if (process.argv[i] === "--target") args.target = process.argv[++i];
   else if (process.argv[i] === "--answers") args.answers = process.argv[++i];
+  else if (process.argv[i] === "--summary") args.summary = process.argv[++i];
   else {
     console.error(`assert: unknown argument ${process.argv[i]}`);
     process.exit(2);
   }
 }
 if (!args.target || !args.answers) {
-  console.error("usage: assert.mjs --target <dir> --answers <answers.env>");
+  console.error("usage: assert.mjs --target <dir> --answers <answers.env> [--summary <file>]");
   process.exit(2);
 }
 
@@ -45,6 +48,7 @@ try {
 const failures = [];
 const pending = [];
 let checked = 0;
+let coverage = null;
 
 function settle(name, detail) {
   console.log(`ok    ${name}${detail ? `  (${detail})` : ""}`);
@@ -130,8 +134,11 @@ function readTsconfig(relative) {
 }
 
 const manifest = readJson("package.json");
-const mode = answers.GUIDE_MODE;
-const layout = answers.GUIDE_LAYOUT;
+// 形态 × 布局 and the facts that follow from them live in `e2e/lib/shape.mjs` — the same module the
+// coverage table's `when` filter and the runner's control gates read, so the three cannot drift
+// apart about what shape this run is.
+const shape = shapeOf(answers);
+const { mode, layout, isMono, isSsr, isSplit, hasServer, hasApp, hasProxy, usesCatalog } = shape;
 // The setup decision point (Phase 4.5) is a branch, and each branch leaves a different project
 // behind — so every check about it is driven by the answer, never by what the target happens to
 // contain. `yes` writes the skill's brief and its docs/agents/ files, and the ADR landing point is
@@ -139,23 +146,6 @@ const layout = answers.GUIDE_LAYOUT;
 // take the guide's default, recorded as an assumption in the provenance.
 const setupRan = answers.GUIDE_SETUP === "yes";
 const adrDir = setupRan ? (answers.GUIDE_ADR_DIR || "docs/adr") : "docs/adr";
-// Whether this shape has a server side, and where it lives: a backend project is one, the SSR shape
-// is a frontend and a server in the same project, and the split shape is a server package and a
-// frontend package. In every profile the server's project is the root: the scaffolded project in
-// the single layout, the workspace root in the monorepo one.
-const isMono = layout === "monorepo";
-const hasServer = mode === "backend" || mode === "fullstack";
-const isSsr = mode === "fullstack" && layout === "single";
-const isSplit = mode === "fullstack" && isMono;
-// The app the monorepo template writes survives everything but a backend project — a backend has no
-// client, and the guide deletes apps/ in the same run.
-const hasApp = isMono && mode !== "backend";
-// Whether a frontend reaches its backend over a dev proxy: a pure frontend's backend is somewhere
-// else (in either layout), and the split shape's is the workspace root server on another port.
-const hasProxy = mode === "frontend" || isSplit;
-// The workspace catalog is where the monorepo layout keeps its versions; in the single layouts the
-// version lives in the project manifest.
-const usesCatalog = isMono;
 // Package directories of the workspace layout, in the order the guide names them. The app and the
 // placeholder package are the profile's shape and decision, so they are only part of the workspace
 // when they exist.
@@ -342,7 +332,7 @@ if (hasServer) {
       assert(spec === "catalog:", `the root says nitro@${spec}, expected the catalog reference`);
       const workspace = read("pnpm-workspace.yaml");
       assert(
-        new RegExp(`^\\s+"?nitro"?:\\s*${answers.GUIDE_NITRO_VERSION.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "m").test(workspace),
+        new RegExp(`^\\s+"?nitro"?:\\s*${escapeRegExp(answers.GUIDE_NITRO_VERSION)}\\s*$`, "m").test(workspace),
         `the workspace catalog does not pin nitro to ${answers.GUIDE_NITRO_VERSION}`,
       );
     } else {
@@ -497,7 +487,7 @@ if (isMono) {
     const required = ["vite-plus", "typescript", ...(hasServer ? ["nitro"] : []), ...(hasProxy ? ["vite-proxy-from-env"] : [])];
     for (const name of required) {
       assert(
-        new RegExp(`^\\s+"?${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"?:`, "m").test(workspace),
+        new RegExp(`^\\s+"?${escapeRegExp(name)}"?:`, "m").test(workspace),
         `the workspace catalog has no ${name} entry`,
       );
     }
@@ -943,10 +933,15 @@ check("the setup decision point left the trace its branch says it should", () =>
 });
 
 check("the inherited ADRs land where the project's own convention says", () => {
-  // The landing point is the one the convention names — never the guide's default by reflex, and
-  // never an answer the profile supplied. Phase 4.5's flow writes the convention, GUIDE.md's
-  // `adr-convention` reads it back, and the answer-driven expectation below is what makes a
-  // hardcoded path fail: `frontend/single` answers a directory that is not `docs/adr/`.
+  // The expected directory comes from the answer — and that is sound here for a reason worth
+  // naming: Phase 4.5's flow writes the convention *from* the answer (it replaces the seed's
+  // `docs/adr/` with `GUIDE_ADR_DIR`), so convention and answer agree by construction. GUIDE.md's
+  // `adr-convention` reads the convention back, and the answer-driven expectation below is what
+  // makes a hardcoded path fail: `frontend/single` answers a directory that is not `docs/adr/`.
+  // That the *file* wins when the two disagree is proven by `run.sh`'s planted-convention control,
+  // which runs the resolver directly and reads its stdout — not here. If the flow ever stops
+  // writing the convention from the answer, this expectation has to be read out of the convention
+  // instead.
   const dir = join(target, adrDir);
   const files = existsSync(dir) ? readdirSync(dir).sort() : [];
   assert(files.length > 0, `no inherited ADR landed in ${adrDir}/ (found nothing)`);
@@ -1094,6 +1089,7 @@ check("the shipped documents cover exactly the items the coverage table declares
   // and a bullet that leaked in from another shape has no row to claim it.
   const result = auditCoverage((relative) => read(relative), answers);
   assert(result.failures.length === 0, result.failures.join("; "));
+  coverage = result;
   return `${result.items} source items landed (${result.claims} rows), ${result.bullets} shipped bullets claimed`;
 });
 
@@ -1267,13 +1263,20 @@ check("build output exists and is not committed to the source tree", () => {
 // -------------------------------------------------------------- reported set
 await Promise.all(pending);
 
-const covered = {
-  frontend: ["single", "monorepo"],
-  fullstack: ["single", "monorepo"],
-  backend: ["single", "monorepo"],
-};
-if (!covered[mode]?.includes(layout)) {
+if (!shape.isAccepted) {
   failures.push(`no assertions are implemented for mode=${mode} layout=${layout}; add them before trusting a green run`);
+}
+
+// The numbers this run computed, as fields rather than as a sentence for someone to parse:
+// `e2e/run.sh` passes `--summary` and `e2e/record.mjs` reads the fields, falling back to the run
+// log for a run directory that predates them.
+if (args.summary) {
+  const fields = { checks: checked, failures: failures.length };
+  if (coverage) {
+    fields.items = coverage.items;
+    fields.bullets = coverage.bullets;
+  }
+  writeFileSync(args.summary, Object.entries(fields).map(([key, value]) => `${key}=${value}`).join("\n") + "\n");
 }
 
 console.log(`\n${checked} checks, ${failures.length} failure(s)`);

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# --- usage
 # Full matrix: run every profile in e2e/profiles/, once each, and rewrite the record.
 #
 #   ./e2e/matrix.sh [--workdir <dir>] [--profile <name>]...
@@ -14,6 +15,7 @@
 # The runs are sequential on purpose: the harness drives dev servers and port allocations, and a
 # record that interleaves profiles is harder to attribute than a slower one that does not. Pass
 # --profile several times to run a subset (the record then says "not run" for the rest).
+# --- end usage
 set -euo pipefail
 
 E2E_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -25,14 +27,22 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --workdir) WORK_ROOT="$2"; shift 2 ;;
     --profile) ONLY+=("$2"); shift 2 ;;
-    --help) sed -n '2,16p' "$0"; exit 0 ;;
+    --help) sed -n '/^# --- usage$/,/^# --- end usage$/p' "$0" | sed '1d;$d'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
+export SHAPE_LIB="$E2E_DIR"
 PROFILES=()
-for file in "$E2E_DIR"/profiles/*.env; do
-  name=$(basename "$file" .env)
+# The set is discovered by the module every other reader uses (`e2e/lib/profiles.mjs`), not by a
+# glob of this script's own: two discovery paths can disagree about what a profile is, and then the
+# runner and the record would be talking about different sets.
+ALL_PROFILES=$(node --input-type=module -e '
+  const { discoverProfiles } = await import(process.env.SHAPE_LIB + "/lib/profiles.mjs");
+  console.log(discoverProfiles(process.env.SHAPE_LIB + "/..").map((profile) => profile.name).join(" "));
+') || { echo "could not discover the profiles (see the error above)" >&2; exit 2; }
+[ -n "$ALL_PROFILES" ] || { echo "no profiles found in $E2E_DIR/profiles" >&2; exit 2; }
+for name in $ALL_PROFILES; do
   if [ "${#ONLY[@]}" -gt 0 ]; then
     for wanted in "${ONLY[@]}"; do [ "$wanted" = "$name" ] && PROFILES+=("$name"); done
   else

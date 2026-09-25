@@ -27,3 +27,4 @@
 - **`assert.mjs` 原有的按形态文档断言保留**：它们断言的是**结构**（某一节在不在、某个包名不该出现），新检查断言的是**内容对账**；两者互补，前者仍然先红、更好读。
 - **`docs/verification.md` 是生成物**：生成者是 `e2e/record.mjs`，入口是 `e2e/matrix.sh`；它同时是 `B7..B11`（"某形态已端到端验证"）的落点，因此那些 ✅ 条目不再是口头声明。
 - **未验证的部分照旧写进记录与指南**：`GUIDE_TNB=yes`、非 pnpm 包管理器、非 react-ts 的 SSR 基座、非 vanilla-ts 的 monorepo 应用基座、`GUIDE_TRACKER=other`。记录里有一节"What this record does not prove"，`docs/upstream-drift.md` 给出它们的前置条件与重验入口。
+- **后续（ADR-0014）**：条目空间的地址此后按**就地声明的 id** 取（边界项自己写 `**B<n>**`），不再按位置编号；guard 的分支只从 `profile-guard` 那个代码块读取、并由 `run.sh` 逐个运行来断言它的接受集；profile 数量与「点名」也成了检查。本条决定的映射归属（只住在 `e2e/coverage.mjs`）与两个对账方向都不变。

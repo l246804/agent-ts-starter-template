@@ -34,59 +34,15 @@
  */
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { readAnswers } from "./lib/answers.mjs";
+import { ACCEPTED, SELECTORS, selectorNames, shapeOf, whenHolds } from "./lib/shape.mjs";
+import { discoverProfiles } from "./lib/profiles.mjs";
+import { escapeRegExp } from "./lib/text.mjs";
 
 // ---------------------------------------------------------------------------- the shape filter
 //
-// A row's `when` is `&`-joined clauses, each clause `|`-separated alternatives. The names are the
-// guide's own `when=` vocabulary plus the layout facts those gates spell out (`shape` is derived
-// once, so a row can say "every shape with a dev proxy" without listing the shapes).
-const SELECTORS = {
-  all: () => true,
-  server: (p) => p.mode !== "frontend",
-  proxy: (p) => p.mode === "frontend" || p.shape === "split",
-  ssr: (p) => p.shape === "ssr",
-  split: (p) => p.shape === "split",
-  single: (p) => p.layout === "single",
-  mono: (p) => p.layout === "monorepo",
-  "mono-server": (p) => p.layout === "monorepo" && p.mode !== "frontend",
-  "mono-shell": (p) => p.layout === "monorepo" && p.mode === "frontend",
-  "mode-backend": (p) => p.mode === "backend",
-  "frontend-single": (p) => p.mode === "frontend" && p.layout === "single",
-  "backend-single": (p) => p.mode === "backend" && p.layout === "single",
-  "frontend-monorepo": (p) => p.mode === "frontend" && p.layout === "monorepo",
-  "backend-monorepo": (p) => p.mode === "backend" && p.layout === "monorepo",
-};
-
-/** The answers a row's selectors read, derived from a profile's GUIDE_* answers. */
-export function answersOf(answers) {
-  const mode = answers.GUIDE_MODE;
-  const layout = answers.GUIDE_LAYOUT;
-  return {
-    mode,
-    layout,
-    shape:
-      mode === "fullstack" && layout === "single"
-        ? "ssr"
-        : mode === "fullstack" && layout === "monorepo"
-          ? "split"
-          : layout === "monorepo"
-            ? `${mode}-workspace`
-            : `${mode}-single`,
-  };
-}
-
-function whenHolds(when, p) {
-  if (!when || when === "all") return true;
-  return when.split("&").every((clause) => {
-    const alternatives = clause.split("|");
-    return alternatives.some((name) => {
-      const selector = SELECTORS[name];
-      if (!selector) throw new Error(`coverage.mjs: unknown selector ${name}`);
-      return selector(p);
-    });
-  });
-}
+// A row's `when` is `&`-joined clauses, each clause `|`-separated alternatives. The vocabulary and
+// the 形态 × 布局 facts behind it live in `e2e/lib/shape.mjs`: one module, read by this table, by
+// `e2e/assert.mjs` and by the runner's control gates, instead of each deriving them again.
 
 // ------------------------------------------------------------------------------- the shipped text
 //
@@ -382,6 +338,10 @@ export const NOT_SHIPPED = {
   // here as a decision that stays in this repository.
   "ADR-0006": { where: "repo", why: "the guide's own test decision: its verify block is the assertion set" },
   "ADR-0012": { where: "repo", why: "this repository's coverage-matrix and alignment decision" },
+  "ADR-0014": {
+    where: "repo",
+    why: "this repository's harness mechanism: declared item ids, and one owner each for the shape, the profile set and the record's numbers",
+  },
 };
 
 // ---------------------------------------------------------------------------------- the checking
@@ -450,7 +410,7 @@ export function shippedDocuments(read) {
 
 /** The rows a profile takes. */
 export function rowsFor(answers) {
-  const p = answersOf(answers);
+  const p = shapeOf(answers);
   return SHIPPED.filter((row) => whenHolds(row.when, p));
 }
 
@@ -507,28 +467,96 @@ export function audit(read, answers) {
 
 // ------------------------------------------------------------------------------------- the self-check
 
-/** Every item id the master list defines: `C<n>` for numbered items, `B<n>` for the boundaries. */
-export function itemIds(constraintsText) {
-  const ids = [];
+/**
+ * Every item of the master list, in document order: `{ id, line, declared }`.
+ *
+ * An id is *declared in the item itself* — `42. 📌 …` for a numbered item, and `- ⚠️ **B13** …`
+ * for a boundary. It used to be counted from a boundary's position in the list, which made the id
+ * invisible: with nothing in the item to read back, deleting one bullet shifted every later id,
+ * and every row naming one silently re-pointed at a different fact (measured: the whole table
+ * stayed green through exactly that). A declared id cannot move.
+ */
+function scanItems(constraintsText) {
+  const entries = [];
   let section = "";
-  let boundary = 0;
-  for (const line of constraintsText.split("\n")) {
-    const heading = /^## (.+?)[ \t]*$/.exec(line);
+  let line = 0;
+  for (const raw of constraintsText.split("\n")) {
+    line += 1;
+    const heading = /^## (.+?)[ \t]*$/.exec(raw);
     if (heading) {
       section = heading[1];
       continue;
     }
-    const numbered = /^(\d+)\. /.exec(line);
+    const numbered = /^(\d+)\. /.exec(raw);
     if (numbered && section !== "已知边界") {
-      ids.push(`C${numbered[1]}`);
+      entries.push({ id: `C${numbered[1]}`, line, declared: true });
       continue;
     }
-    if (section === "已知边界" && /^- /.test(line)) {
-      boundary += 1;
-      ids.push(`B${boundary}`);
+    if (section === "已知边界" && /^- /.test(raw)) {
+      const declared = /^- [^\s]+ \*\*(B\d+)\*\*/.exec(raw);
+      entries.push(declared ? { id: declared[1], line, declared: true } : { id: null, line, declared: false });
     }
   }
-  return ids;
+  return entries;
+}
+
+/** Every item id the master list declares: `C<n>` for numbered items, `B<n>` for the boundaries. */
+export function itemIds(constraintsText) {
+  return scanItems(constraintsText)
+    .filter((entry) => entry.declared)
+    .map((entry) => entry.id);
+}
+
+/**
+ * The master list's own failures: an item that declares no id, and an id declared twice. Both are
+ * the item space's business — a boundary without an id is the state that made the table's
+ * addresses depend on the list's order.
+ */
+export function itemIdFailures(constraintsText) {
+  const failures = [];
+  const seen = new Map();
+  for (const entry of scanItems(constraintsText)) {
+    if (!entry.declared) {
+      failures.push(
+        `docs/constraints.md:${entry.line} is a 已知边界 item with no declared id — write "- <emoji> **B<n>** …" so its id travels with it`,
+      );
+      continue;
+    }
+    if (seen.has(entry.id)) {
+      failures.push(`${entry.id} is declared twice (docs/constraints.md:${seen.get(entry.id)} and :${entry.line})`);
+    } else {
+      seen.set(entry.id, entry.line);
+    }
+  }
+  return failures;
+}
+
+/**
+ * The (形态, 布局) arms the *profile guard* declares, read from that one fenced block.
+ *
+ * The guard is `guide:exec id=profile-guard`, and its arms are the `case` labels indented two
+ * spaces inside it. An earlier version of this check matched any two-space-indented
+ * `mode/layout)` line anywhere in GUIDE.md — 18 lines, spread across three different `case`
+ * statements — so the guard could lose an arm and the check stayed green on a copy inside the
+ * verify block (measured). Scoping the read to the guard's own block is what makes the claim in
+ * the failure message true; that the guard *accepts* each arm is asserted by running it
+ * (`e2e/run.sh`).
+ */
+export function guardArms(guide) {
+  const lines = guide.split("\n");
+  const open = lines.findIndex((line) => /^```[^\n]*guide:exec\b[^\n]*\bid=profile-guard\b/.test(line));
+  if (open < 0) return { found: false, arms: [] };
+  let close = open + 1;
+  while (close < lines.length && !/^```[ \t]*$/.test(lines[close])) close += 1;
+  const arms = [];
+  for (const line of lines.slice(open + 1, close)) {
+    // Any `  <形态>/<布局>)` arm, whatever the two words are: the vocabulary is `ACCEPTED`'s
+    // business, and a guard arm this pattern could not read would be an arm no direction checks —
+    // the very silence this function exists to end.
+    const arm = /^ {2}([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\)/.exec(line);
+    if (arm) arms.push(`${arm[1]}/${arm[2]}`);
+  }
+  return { found: true, arms };
 }
 
 /** Every ADR id the repository carries. */
@@ -541,14 +569,10 @@ export function adrIds(repoRoot) {
     .map((match) => `ADR-${match[1]}`);
 }
 
-/** The answers of every profile file, by profile name. */
+/** The answers of every profile file, by profile name. Discovery lives in `lib/profiles.mjs`. */
 export function profileAnswers(repoRoot) {
-  const dir = join(repoRoot, "e2e", "profiles");
   const profiles = new Map();
-  if (!existsSync(dir)) return profiles;
-  for (const name of readdirSync(dir).filter((entry) => entry.endsWith(".env")).sort()) {
-    profiles.set(name.slice(0, -4), readAnswers(join(dir, name)));
-  }
+  for (const profile of discoverProfiles(repoRoot)) profiles.set(profile.name, profile.answers);
   return profiles;
 }
 
@@ -567,6 +591,7 @@ export function selfCheck(repoRoot) {
     ? readFileSync(join(repoRoot, "docs", "verification.md"), "utf8")
     : null;
   const items = itemIds(constraints);
+  for (const failure of itemIdFailures(constraints)) failures.push(failure);
   const adrs = adrIds(repoRoot);
   const known = new Set([...items, ...adrs]);
   // The guide wraps its prose, so a marker is a fragment of the *flattened* text: the shipped
@@ -614,11 +639,9 @@ export function selfCheck(repoRoot) {
   // matches, and a selector no row uses is dead weight in the vocabulary.
   const usedSelectors = new Set();
   for (const row of SHIPPED) {
-    for (const clause of String(row.when).split("&")) {
-      for (const name of clause.split("|")) {
-        usedSelectors.add(name);
-        if (!SELECTORS[name]) failures.push(`a row's shape filter names ${name}, which is not a selector (${row.item})`);
-      }
+    for (const name of selectorNames(row.when)) {
+      usedSelectors.add(name);
+      if (!SELECTORS[name]) failures.push(`a row's shape filter names ${name}, which is not a selector (${row.item})`);
     }
   }
   for (const name of Object.keys(SELECTORS)) {
@@ -627,19 +650,31 @@ export function selfCheck(repoRoot) {
 
   // ---- the profile set covers the matrix.
   const profiles = profileAnswers(repoRoot);
-  const p = [...profiles.values()].map(answersOf);
+  const p = [...profiles.values()].map(shapeOf);
   for (const row of SHIPPED) {
     if (!p.some((answers) => whenHolds(row.when, answers))) {
       failures.push(`no profile runs the shape ${row.when} declares (${row.item}, ${row.doc} §${row.section})`);
     }
   }
-  const guardArms = [...guide.matchAll(/^ {2}(frontend|backend|fullstack)\/(single|monorepo)\)/gm)].map(
-    (match) => `${match[1]}/${match[2]}`,
-  );
-  for (const arm of guardArms) {
-    const [mode, layout] = arm.split("/");
-    if (!p.some((answers) => answers.mode === mode && answers.layout === layout)) {
-      failures.push(`the profile guard implements ${arm}, which no profile file runs`);
+  // ---- the guard's accepted set, bound to this module's declaration both ways, and every arm
+  // runnable: a shape the guard accepts with no profile file is a shape nobody runs, and a shape
+  // the module accepts that the guard does not implement would fail every run that took it.
+  // The arms come from the guard step's own block — not from any line in GUIDE.md that looks like
+  // an arm — and `e2e/run.sh` then runs the guard once per arm to prove it accepts them.
+  const guard = guardArms(guide);
+  if (!guard.found) {
+    failures.push("GUIDE.md has no `guide:exec id=profile-guard` step — the guard's accepted set cannot be read");
+  } else {
+    if (new Set(guard.arms).size !== guard.arms.length) failures.push("the profile guard declares one arm twice");
+    for (const arm of guard.arms) {
+      if (!ACCEPTED.includes(arm)) failures.push(`the profile guard implements ${arm}, which e2e/lib/shape.mjs's ACCEPTED does not name`);
+      const [mode, layout] = arm.split("/");
+      if (!p.some((answers) => answers.mode === mode && answers.layout === layout)) {
+        failures.push(`the profile guard implements ${arm}, which no profile file runs`);
+      }
+    }
+    for (const arm of ACCEPTED) {
+      if (!guard.arms.includes(arm)) failures.push(`e2e/lib/shape.mjs accepts ${arm}, which the profile guard does not implement`);
     }
   }
   // The setup decision point's two branches are proved by profiles too. No shipped row is keyed on
@@ -660,18 +695,43 @@ export function selfCheck(repoRoot) {
       }
     }
   }
-  // ---- the profile set is named where it is documented, and the shared pins agree.
+  // ---- the profile set is named where it is documented, the count in that prose is the set's,
+  // and the shared pins agree.
   const readme = flat(readFileSync(join(repoRoot, "e2e", "README.md"), "utf8"));
+  const agents = flat(readFileSync(join(repoRoot, "AGENTS.md"), "utf8"));
   // A profile is named in the product as `<mode>-<layout>` (the profile file) or `<mode>/<layout>`
-  // (the guide's own profile table); either is the profile being described.
+  // (the guide's own profile table); either is the profile being described. The match is a whole
+  // name, not a substring: `backend-monorepo` occurs inside `backend-monorepo-placeholder-no`, so
+  // the substring form could never fail for the three arrangements that have a `-placeholder-`
+  // sibling (measured) — three of nine rows were dead checks.
   const slashName = (name) => name.replace(/^(frontend|backend|fullstack)-(single|monorepo)/, "$1/$2");
+  const mentions = (text, name) =>
+    new RegExp(`(^|[^A-Za-z0-9_-])${escapeRegExp(name)}([^A-Za-z0-9_-]|$)`).test(text);
+  // A count written in prose is a fact with no owner unless something reads it: `AGENTS.md` said
+  // "nine of them" and `e2e/README.md` "The nine profiles", and nothing did.
+  const NUMBER_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+  const count = NUMBER_WORDS[profiles.size];
+  if (!count) {
+    failures.push(`the profile set holds ${profiles.size} profiles: extend NUMBER_WORDS in selfCheck and update the counts in AGENTS.md and e2e/README.md`);
+  } else {
+    for (const [doc, text, phrase] of [
+      ["AGENTS.md", agents, `${count} of them`],
+      ["AGENTS.md", agents, `all ${count}`],
+      ["e2e/README.md", readme, `The ${count} profiles`],
+    ]) {
+      if (!text.includes(phrase)) failures.push(`${doc} does not say "${phrase}" — the profile count in prose has to follow the profile set`);
+    }
+  }
   // Every profile answers these; the server pin belongs to the shapes that have a server, so it is
   // compared only among the profiles that do answer it.
   const REQUIRED_PINS = ["GUIDE_VP_VERSION", "GUIDE_TS_VERSION", "GUIDE_TNB_VERSION", "GUIDE_SKILLS_VERSION"];
   const COMPARED_PINS = [...REQUIRED_PINS, "GUIDE_NITRO_VERSION"];
   for (const [name, answers] of profiles) {
+    const shape = shapeOf(answers);
+    if (!shape.arm) failures.push(`profile ${name} does not answer GUIDE_MODE and GUIDE_LAYOUT`);
+    else if (!shape.isAccepted) failures.push(`profile ${name} answers ${shape.arm}, which e2e/lib/shape.mjs's ACCEPTED does not name`);
     for (const [doc, text] of [["GUIDE.md", flatGuide], ["e2e/README.md", readme]]) {
-      if (!text.includes(name) && !text.includes(slashName(name))) {
+      if (!mentions(text, name) && !mentions(text, slashName(name))) {
         failures.push(`profile ${name} exists but is not named in ${doc}`);
       }
     }
