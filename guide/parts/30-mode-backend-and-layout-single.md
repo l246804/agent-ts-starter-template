@@ -279,3 +279,38 @@ cat >> AGENTS.md <<'BACKEND'
 BACKEND
 echo "ok  backend/single rules appended"
 ```
+
+```bash guide:exec id=prov-backend-single when=mode:backend&layout:single
+set -euo pipefail
+: "${GUIDE_FRAMEWORK:?Phase 1 must answer GUIDE_FRAMEWORK}"
+nitro_pin=${GUIDE_NITRO_VERSION:-}
+[ -n "$nitro_pin" ] || { echo "GUIDE_NITRO_VERSION was never answered (Phase 2)" >&2; exit 1; }
+nitro_version=$(node -p 'require("./node_modules/nitro/package.json").version')
+installed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+choice_rows="| Scaffold base | ${GUIDE_FRAMEWORK} (the client it writes is pruned in the same run: a backend project has no frontend) |
+| Server foundation | nitro@${nitro_version} — \`${nitro_pin}\` (prerelease) |"
+scaffold_line="3. Skeleton: \`vp create vite:application\` + \`--template ${GUIDE_FRAMEWORK}\`, alias map, configuration trimmed, ignore rules refined, dependencies installed."
+server_step="4. Server: the scaffold's client pruned (\`src/\`, \`public/\`, \`index.html\`), \`nitro\` pinned and installed, \`serverDir: \"./server\"\` with \`output: { dir: \"dist\" }\` in \`nitro.config.ts\`, and \`nitro()\` registered in the \`plugins\` array of \`vite.config.ts\`."
+verify_step="8. Verification: format, static check with a live type checker, the build script with its output in \`dist/\`, and smoke tests of the dev server and of the built \`dist/server/index.mjs\`. Recorded ${installed_at}."
+
+printf '%s\n' "$choice_rows" > .vite-plus-prov-choice
+printf '%s\n' "$scaffold_line" > .vite-plus-prov-scaffold
+printf '%s\n' "$server_step" > .vite-plus-prov-server
+printf '%s\n' "$verify_step" > .vite-plus-prov-verify
+echo "ok  provenance arm backend/single: choices, skeleton, server and verification rows written"
+```
+
+```bash guide:exec id=report-backend-single when=mode:backend&layout:single
+set -euo pipefail
+# The lines Phase 7's report repeats, and only this shape's: what it did on purpose, and what it
+# does not cover. They live here rather than in Phase 7's prose because Phase 7 is shared by every
+# shape, and a shared report can only be wrong for five of the six.
+cat <<'REPORT'
+Deliberate — the toolchain and nitro are pinned prereleases, and the client `vp create` wrote is deleted in the same run, so this project has no frontend at all.
+Deliberate — the routes carry no `/api` prefix (that prefix belongs to the frontend modes' dev proxy), and Nitro's output goes to `dist/`, which the scaffold's ignore rules already cover: that is why this run added no ignore rule.
+Not covered — only the one initialized route is verified. A real route table is something the project adds later, under the same rules.
+Not covered — production deployment topology, and anything a browser would do: this shape serves no page.
+REPORT
+echo "ok  handoff lines for backend/single are above"
+```

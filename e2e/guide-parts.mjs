@@ -22,7 +22,7 @@
  * k-th run. Gluing is therefore unambiguous and the reconstruction is byte-exact.
  */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseInfo, scanFences } from "./extract.mjs";
@@ -172,6 +172,20 @@ function assemble(manifest) {
  */
 function writeParts() {
   const { parts, manifest, text } = splitGuide();
+  // A part whose gate or position changed gets a new file name (the ordinal is part of it), so the
+  // old one has to go: a stale file in guide/parts/ is a 分片 a reader could fetch and run, and
+  // nothing would say it is not this guide's text any more.
+  const keep = new Set([...parts.values()].map((part) => part.file));
+  const directory = join(REPO, PARTS_DIR);
+  const pruned = [];
+  if (existsSync(directory)) {
+    for (const name of readdirSync(directory)) {
+      const relative = `${PARTS_DIR}/${name}`;
+      if (!name.endsWith(".md") || keep.has(relative)) continue;
+      rmSync(join(REPO, relative));
+      pruned.push(relative);
+    }
+  }
   for (const part of parts.values()) write(part.file, part.text);
   write("guide/parts.json", JSON.stringify(manifest, null, 2) + "\n");
   const rebuilt = assemble(JSON.parse(readFileSync(MANIFEST_PATH, "utf8")));
@@ -179,7 +193,9 @@ function writeParts() {
     fail("the 分片 just written do not glue back into GUIDE.md — a bug in guide-parts.mjs, not something to fix by hand");
   }
   console.log(
-    `guide-parts: cut GUIDE.md into ${Object.keys(manifest.parts).length} 分片 (${manifest.order.length} runs, ${manifest.byteLength} B); GUIDE.md is the source and was not touched`,
+    `guide-parts: cut GUIDE.md into ${Object.keys(manifest.parts).length} 分片 (${manifest.order.length} runs, ${manifest.byteLength} B)${
+      pruned.length ? `; pruned ${pruned.length} stale file(s): ${pruned.join(", ")}` : ""
+    }; GUIDE.md is the source and was not touched`,
   );
 }
 
@@ -218,6 +234,19 @@ export function checkGuideParts() {
     }
   } catch (error) {
     failures.push(`the 分片 do not glue back into GUIDE.md: ${error.message}`);
+  }
+  // A file the manifest does not name is a 分片 nobody promises anything about — the stale half of a
+  // re-cut, which is exactly what a reader (or a client agent following the 路由表) would trip over.
+  const directory = join(REPO, PARTS_DIR);
+  if (existsSync(directory)) {
+    const named = new Set(Object.values(manifest.parts).map((part) => part.file));
+    for (const name of readdirSync(directory)) {
+      if (!name.endsWith(".md")) continue;
+      const relative = `${PARTS_DIR}/${name}`;
+      if (!named.has(relative)) {
+        failures.push(`${relative} is in ${PARTS_DIR}/ but guide/parts.json does not name it — run \`node e2e/guide-parts.mjs --write\` to prune it`);
+      }
+    }
   }
   return failures;
 }

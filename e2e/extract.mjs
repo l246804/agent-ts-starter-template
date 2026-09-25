@@ -20,6 +20,16 @@
  *   when=mode:frontend|backend        include the step only when GUIDE_MODE matches
  *   when=mode:fullstack&layout:single every clause must match (one `|` alternative each)
  *
+ * The attribute vocabulary is closed: a marker's info string may carry `id`, `path` and `when`
+ * (plus the kind token and prose), and anything else is a failure rather than a silent no-op. An
+ * unread attribute is how a step stops being gated without anyone noticing — `only=…`, or `whe=…`
+ * for `when=`, used to be accepted and ignored.
+ *
+ * `&` clauses are evaluated left to right with the first false clause short-circuiting, and a clause
+ * whose answer is missing fails the extraction. So a gate may name an answer that only some shapes
+ * carry — `layout:monorepo&placeholder:yes` extracts safely in a single-layout run (the layout
+ * clause is false first) while the reverse order would demand an answer that run never has.
+ *
  * Anything else in the info string (a language tag, prose) is ignored, so blocks
  * without a `guide:` token document the guide without becoming steps.
  *
@@ -49,6 +59,7 @@ import { pathToFileURL } from "node:url";
 import { readAnswers } from "./lib/answers.mjs";
 
 const KINDS = new Set(["exec", "file", "verify"]);
+const ATTRIBUTES = new Set(["id", "path", "when"]);
 
 function fail(message) {
   console.error(`extract: ${message}`);
@@ -114,6 +125,7 @@ export function scanFences(text) {
 
 export function parseInfo(info) {
   const attrs = {};
+  const keys = [];
   let kind = null;
   const tokens = info.length ? info.split(/\s+/) : [];
   for (const token of tokens) {
@@ -130,6 +142,20 @@ export function parseInfo(info) {
       let value = token.slice(eq + 1);
       if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
       attrs[key] = value;
+      keys.push(key);
+    }
+  }
+  // A guide marker's attributes are a closed vocabulary: an attribute nobody reads is a typo that
+  // silently changes behaviour (`whe=mode:backend` would make a gated step unconditional, `only=…`
+  // is a no-op), so it is a failure here — in the one implementation of the grammar — rather than a
+  // silent no-op. Checked after the loop so the order of tokens in the info string cannot matter.
+  if (kind) {
+    for (const key of keys) {
+      if (!ATTRIBUTES.has(key)) {
+        fail(
+          `unknown attribute \`${key}=\` in guide:${kind} (known: ${[...ATTRIBUTES].join(", ")}; did you mean \`when=\`?): ${info}`,
+        );
+      }
     }
   }
   return { kind, attrs };
@@ -140,8 +166,12 @@ export function parseInfo(info) {
  * when=mode:fullstack&layout:single — one clause per `&`, and all of them must match: a mode can
  * hold two shapes (fullstack is SSR in the `single` layout and split in the `monorepo` one), so a
  * step that belongs to only one of them has to name both answers.
+ *
+ * Clauses are evaluated in order and `.every` short-circuits on the first false one, so a gate that
+ * names an answer only some shapes carry is safe as long as the clause that rejects those shapes
+ * comes first (see the header note).
  */
-function whenMatches(expr, answers) {
+export function whenMatches(expr, answers) {
   return expr.split("&").every((clause) => {
     const colon = clause.indexOf(":");
     if (colon < 0) fail(`bad when clause (expected key:value): ${clause}`);

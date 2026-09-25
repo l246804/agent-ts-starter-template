@@ -18,101 +18,80 @@ Two properties are deliberate, because this project exists to prevent them:
 - **Stop, don't repair.** If any step or verification fails, stop and report. Do not adjust
   the check until it agrees with the code.
 
-## Profile status
+## The router — which parts this run takes
 
-| Mode | Layout | Status in this revision |
-| --- | --- | --- |
-| `frontend` | `single` | **Implemented and E2E-verified** (pnpm + `react-ts`); the same steps cover the other create-vite TypeScript templates |
-| `backend` | `single` | **Implemented and E2E-verified** (pnpm): a Nitro v3 server at the project root, as a Vite plugin, with no client |
-| `fullstack` | `single` | **Implemented and E2E-verified** (pnpm + `react-ts`): the SSR shape — server-side rendering and the same-origin API in one project |
-| `fullstack` | `monorepo` | **Implemented and E2E-verified** (pnpm + the scaffold's `vanilla-ts` app): the split shape — the workspace root hosts the Nitro server, `apps/website` is the frontend, and the dev proxy reproduces the production reverse proxy |
-| `backend` | `monorepo` | **Implemented and E2E-verified** (pnpm): a workspace whose root *is* the server and whose only other package is the layout's placeholder decision — the client the template writes is deleted in the same run |
-| `frontend` | `monorepo` | **Implemented and E2E-verified** (pnpm): a workspace whose root is a shell and whose app is `apps/website`, reaching an external backend through the app's dev proxy |
-| any other combination | Not implemented — the guide stops at the profile guard and tells you so |
+`GUIDE.md` is delivered as an index plus parts: this index (the head, the answer table, Phase 0–2
+and this table) and one file per `when=` gate. A run fetches the index and then **only the parts its
+own answers select** — the other shapes' text is not read at all, rather than skimmed and skipped.
 
-`backend/single` initializes a project whose only artefact is a server: the client that `vp create`
-scaffolds is deleted in the same run, `server/` holds the routes and sits at the project root, the
-routes are not `/api`-prefixed (that prefix belongs to the frontend modes' dev proxy), and Nitro's
-production output goes to `dist/` — a directory the scaffold's ignore rules already cover — rather
-than Nitro's default `.output/`, which they do not.
+The table below is the whole routing decision. Read the row for your `GUIDE_MODE`/`GUIDE_LAYOUT`,
+fetch exactly the files it names, and run exactly the steps it lists, in that order. Print that step
+list before you start: it is the receipt this delivery is checked against. If a file or a step is
+missing, **stop and report which one** — fetching the whole `GUIDE.md` instead would throw away the
+one property the split exists for.
 
-`fullstack/single` is the **SSR shape**: one project renders the page on the server and hydrates it
-in the browser, and the API that page calls belongs to the same server, so there is one origin and
-no dev proxy. The shape keeps **no `index.html` at all** — with no template, Nitro installs its
-built-in SSR renderer and the SSR entry's own response *is* the document. That is the explicit
-choice this profile makes about its failure mode: with a template in place, the
-`<!--ssr-outlet-->` comment is what decides whether the entry's output reaches the page, and a
-missing comment is **silent** — the entry is still detected, still logged, and `/` answers the
-plain client shell with exit 0. Deleting the template removes that class of error instead of
-guarding against it, and verification asserts the rendered marker on top.
+```text router
+[frontend/single]
+fetch: guide/index.md guide/parts/10-core.md guide/parts/80-mode-frontend-and-layout-single.md
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install proxy skills setup-guard adr-convention agents-md agents-rules-frontend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md adr-land file:docs/agent-notes.md notes-proxy prov-frontend-single provenance report-frontend-single verify
 
-`fullstack/monorepo` is the **split shape**: a pnpm workspace (one catalog, one lockfile) whose root
-package *is* the server — Nitro v3 as a Vite plugin, plus `defaultPackage: "."` so `vp dev` and
-`vp build` act on the root — and whose frontend is the app `vp create vite:monorepo` writes under
-`apps/website`. The two halves are two dev servers on two ports (the app on 5173, the root server
-on Nitro's 3000), and the app reaches the API through the same shape the production edge runs:
-`DEV_PROXY` in `apps/website/.env` names the root server, the `/api/` prefix is stripped on the
-way through, and the server never learns that prefix exists. The commands that matter are
-registered at the workspace root (`dev:server`, `dev:website`) and are vp-form; every dependency
-version lives in the workspace catalog, so the root and its packages resolve one version per
-dependency; and the packages the scaffold writes are pruned the way every other profile prunes
-them. The placeholder package `vp create vite:monorepo` ships (`packages/utils`) is a decision
-point: keep it as the home for future shared code, or delete it — the layout is the same either
-way, and the workspace-wide commands are what make either shape work.
+[frontend/monorepo]
+fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md guide/parts/120-mode-frontend-and-layout-monorepo.md
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app proxy-workspace skills setup-guard adr-convention agents-md agents-rules-frontend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0004-frontend-workspace.md adr-land file:docs/agent-notes.md notes-proxy-app notes-workspace prov-frontend-monorepo provenance report-frontend-monorepo verify
 
-`backend/monorepo` is the **backend in a workspace**: the same server the single layout builds — Nitro v3
-as a Vite plugin at the root, `serverDir: "./server"`, `output: { dir: "dist" }`, routes without an
-`/api` prefix — inside the monorepo template instead of a single project. Two things make it a
-different shape rather than the same one rearranged. The **client the template writes goes**: a
-backend project has no frontend, so `apps/website` is deleted and the workspace's other package is
-the layout's placeholder decision (`packages/utils`, kept or deleted). And the **root commands are
-re-pointed at what actually exists**: the template's `"dev": "vp run website#dev"` names a package
-that no longer exists, and a root script naming a missing package is a **silent no-op** — measured:
-`vp run website#dev` exits 0 with `0/0 cache hit` and does nothing. The guide replaces that script
-set with `dev:server`, `check`, `test`, `build` and `ready`, and verification proves the
-replacement is not a no-op by building the workspace with `vp run -r build` and requiring the
-root's `dist/server/index.mjs` to come out of it.
+[backend/single]
+fetch: guide/index.md guide/parts/10-core.md guide/parts/30-mode-backend-and-layout-single.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/140-mode-backend-or-fullstack-and-layout-single.md guide/parts/150-mode-backend.md
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install backend-skeleton backend-manifest backend-plugin skills setup-guard adr-convention agents-md agents-rules-backend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-backend prov-backend-single provenance report-backend-single verify
 
-`frontend/monorepo` is the **frontend in a workspace**: the root is a shell that owns the catalog
-and the commands, and `apps/website` — the app the monorepo template writes — is the application.
-There is no server anywhere in it, and the app's backend is somebody else's, so the dev proxy is a
-**decision**, exactly as in the single layout: `GUIDE_DEV_PROXY` names the backend, offered with
-the placeholder `http://127.0.0.1:3000` when nothing better is known. The proxy config lives in the
-package that has the dev server (`apps/website/vite.config.ts` + `apps/website/.env`), and
-verification smokes the app from the app's own port through that proxy.
+[backend/monorepo]
+fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md guide/parts/110-mode-backend-and-layout-monorepo.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/150-mode-backend.md
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-plugin skills setup-guard adr-convention agents-md agents-rules-backend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-backend-workspace.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-backend prov-backend-monorepo provenance report-backend-monorepo verify
 
-Because both new shapes are workspaces, the placeholder package (`packages/utils`) is a decision in
-all three monorepo profiles: keep it as the home for future shared code, or delete it. Keeping it
-means keeping its own skeleton and configuration (its manifest, tsconfig, Vite config, source and
-test) — pruned of the library starter's publishing shape, with its versions moved into the
-workspace catalog. Both answers are run in every arrangement that has the decision: the split
-shape is initialized with the package kept (`fullstack-monorepo`) and with it deleted
-(`fullstack-monorepo-placeholder-no`), the backend workspace keeps it (`backend-monorepo`) and
-deletes it (`backend-monorepo-placeholder-no`), and the frontend workspace deletes it
-(`frontend-monorepo`) and keeps it (`frontend-monorepo-placeholder-yes`) — so no arrangement
-carries a branch that has never been built.
+[fullstack/single]
+fetch: guide/index.md guide/parts/10-core.md guide/parts/40-mode-fullstack-and-layout-single.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/140-mode-backend-or-fullstack-and-layout-single.md
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install ssr-skeleton ssr-manifest ssr-plugin skills setup-guard adr-convention agents-md agents-rules-fullstack-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-ssr-shape.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-ssr prov-fullstack-single provenance report-fullstack-single verify
 
-Two branches are written from the research but **not exercised by this revision's harness**:
-`GUIDE_TNB=yes` (the TypeScript 6 API bridge, needed by `vue-ts`/`svelte-ts`), every package
-manager other than `pnpm`, every SSR base other than `react-ts` — the SSR entry is framework
-code, so the guard refuses those before writing anything rather than generating a project whose
-renderer cannot work — every split-shape app base other than the `vanilla-ts` app the monorepo
-template writes, and every monorepo app base other than that same app. Treat a green run in an
-unexercised branch as unproven until it has been run once. The profiles themselves are in
-`e2e/profiles/`, and the record of one full pass of all of them is `docs/verification.md`.
+[fullstack/monorepo]
+fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md guide/parts/100-mode-fullstack-and-layout-monorepo.md guide/parts/130-mode-backend-or-fullstack.md
+steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app workspace-plugin proxy-workspace skills setup-guard adr-convention agents-md agents-rules-fullstack-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-split-shape.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-proxy-split prov-fullstack-monorepo provenance report-fullstack-monorepo verify
 
-The setup decision point is run in both of its branches too: `frontend/single` takes `yes` — with a
-GitHub tracker and a convention whose ADR directory is not the default, which is what proves the
-landing point is read out of the project rather than hardcoded — and the other eight profiles take
-`no`. The harness's setup controls run the remaining sub-answers once each in a scratch project: a
-`local` and then a `gitlab` tracker (which is also the skill's own tracker-switch re-run), the
-`multi` layout, and a convention that keeps the default `docs/adr/`. `GUIDE_TRACKER=other` is the one
-answer nothing runs and nothing can run: that file is the user's own description of their workflow,
-so the guard refuses it instead of inventing one.
+unrun tnb:yes: fetch: guide/parts/20-tnb-yes.md; steps: manifest-tnb (after manifest)
+setup:yes: fetch: guide/parts/90-setup-yes.md; steps: setup-flow (after setup-guard)
+```
 
-The phase skeleton below (preflight → decisions → initialize → skills → documents → verify →
-handoff) is the structure every profile fills in; the profile guard keeps unimplemented
-combinations from producing a half-built project.
+What each row builds, in one line:
+
+- `frontend/single` — the scaffolded app, plus a dev proxy to a backend somebody else runs.
+- `frontend/monorepo` — the app under `apps/website`, under a root that is a shell owning the
+  catalog and the commands.
+- `backend/single` — a Nitro server at the project root, with no client: the base the generator
+  writes is scaffolded and its client deleted in the same run.
+- `backend/monorepo` — the same server as a workspace root, the template's app deleted and the root
+  commands re-pointed at what is left.
+- `fullstack/single` — the SSR shape: one project renders the page and serves the API on one origin,
+  so there is no dev proxy.
+- `fullstack/monorepo` — the split shape: the server at the workspace root, the app in
+  `apps/website`, and a dev proxy that reproduces the production reverse proxy.
+
+Two answers are not part of any row: `GUIDE_SETUP=yes` and `GUIDE_TNB=yes` add the file and the step
+their lines name, and nothing else changes. `unrun` marks the one gate this revision's harness never
+exercises — `GUIDE_TNB=yes`, the TypeScript 6 bridge that `vue-ts` and `svelte-ts` need — so treat a
+green run there as unproven until it has been run once. The other unexercised branches are refused
+by a guard rather than declared here, because no unattended run can take them: every package manager
+but `pnpm`, every SSR base but `react-ts`, every app base but the `vanilla-ts` app the monorepo
+template writes, and `GUIDE_TRACKER=other`.
+
+`GUIDE_PLACEHOLDER` (the monorepo layout's keep-or-delete decision) changes what a step keeps,
+never which steps run — which is why six rows stand for the nine runs this revision supports: the
+three modes × the two layouts, plus both answers of that decision in every arrangement that has it.
+Those nine runs are `frontend-single`, `frontend-monorepo` / `frontend-monorepo-placeholder-yes`,
+`backend-single`, `backend-monorepo` / `backend-monorepo-placeholder-no`, `fullstack-single`, and
+`fullstack-monorepo` / `fullstack-monorepo-placeholder-no`.
+
+The shape of the run behind those rows is the same everywhere: preflight → decisions (Phase 1, 2,
+3.5 and 4.5) → initialize → skills → documents → verify → handoff. Only the decision points stop to
+ask, and the profile guard refuses a combination this revision does not implement rather than
+half-building it.
 
 ## How to read this guide
 
@@ -125,8 +104,9 @@ combinations from producing a half-built project.
   something to improvise. The inherited ADRs are shipped the same way but into a **staging
   directory** (`.vite-plus-inherited-adrs/`): where they *land* is this project's decision, read
   from its own convention in Phase 5, so the path in their markers is not their final one.
-- A fenced block marked **`guide:verify`** is the verification step. It is the assertion set
-  for the whole initialization: run it as-is, and treat a red result as a stop.
+- A fenced block marked **`guide:verify`** is the verification step. It is the assertion set for
+  what this run built — the project's code, and the documents Phase 5 wrote. Run it as-is, and
+  treat a red result as a stop.
 - A step whose marker carries a **`when=…`** clause belongs to the answers it names and is skipped
   otherwise: `when=mode:backend` is a step for backend projects, and an alternative list such as
   `when=mode:backend|fullstack` covers either of those modes. A `&` joins clauses that must all
@@ -134,9 +114,6 @@ combinations from producing a half-built project.
   `when=mode:fullstack&layout:monorepo` is the split one. Every step without one applies to the
   profile you are initializing.
 - Blocks **without** a `guide:` marker are explanation and examples.
-
-The E2E harness in `e2e/` extracts exactly these markers and runs them from an empty
-directory, so the document and the test can never drift into two truths.
 
 ## Answers — decision points, asked once and pre-answerable
 
@@ -149,6 +126,21 @@ rather than by this guide, so its three answers are listed separately below. Ask
 the answers as environment
 variables; every step below fails loudly if an answer it needs is missing. That is also what makes
 an unattended run possible.
+
+Every decision point asks in the same four parts, and **all four are owed** — a point that skipped
+one is not answered:
+
+1. **Ask** the question with its options, in one place, and do not start writing while it is open.
+2. **Recommend** one answer and say why. A point that is open and unanswered is a stopped run, not
+   a licence to choose silently on the user's behalf.
+3. **Disclose** what changes the user's picture: a prerelease pin (Phase 2), the placeholder
+   address a proxy falls back to and the `502` it answers (Phase 3.5), and the fact that only the
+   user can start the setup skill (Phase 4.5).
+4. **Print the receipt.** Each point's guard step prints the `ok …` line that says the answer was
+   accepted — `ok  profile …` and `ok  placeholder package …` (Phase 1, `profile-guard`),
+   `ok  pinned: …` (Phase 2, `pins`), `ok  dev proxy wired …` (Phase 3.5, the proxy step),
+   `ok  setup …` (Phase 4.5, `setup-guard`). That line is the point's completion criterion: no
+   receipt, no answer.
 
 | Variable | Meaning | Accepted values |
 | --- | --- | --- |
@@ -393,8 +385,12 @@ fi
 
 ## Phase 2 — Decision point: versions
 
-Nothing in the generated project may sit on a floating version. Report what will be used,
-disclose prereleases explicitly, and confirm:
+Nothing in the generated project may sit on a floating version. This is a decision point like every
+other: report what will be used, recommend the pins below and say why, **disclose** the prereleases
+as prereleases rather than as "latest stable", and finish with the receipt the step below prints —
+`ok  pinned: …` is this point's completion criterion, not the absence of an error.
+
+What is pinned, and why each pin is the one to recommend:
 
 - **`vite-plus`** — pinned, e.g. `1.0.0-rc.0`. It is a **prerelease**: the only alternatives
   are older prereleases, and the rc keeps its `devEngines`/`catalog` behaviour consistent.
@@ -420,6 +416,42 @@ disclose prereleases explicitly, and confirm:
   API, so pinning v3 exactly is the choice that keeps the record honest. v3 also scans nothing by
   default (`serverDir` defaults to `false`), so the server directory is something this guide sets
   deliberately, not something the framework assumes.
+
+```bash guide:exec id=pins
+set -euo pipefail
+# The version decision point's own step. Every pin this run uses is asserted here, once, with the
+# prereleases named as prereleases — the disclosure the point owes the user — and the receipt this
+# run can check: `ok  pinned: …`.
+: "${GUIDE_VP_VERSION:?Phase 2 must answer GUIDE_VP_VERSION}"
+: "${GUIDE_TS_VERSION:?Phase 2 must answer GUIDE_TS_VERSION}"
+: "${GUIDE_SKILLS_VERSION:?Phase 2 must answer GUIDE_SKILLS_VERSION}"
+: "${GUIDE_TNB:?Phase 2 must answer GUIDE_TNB (yes for vue-ts/svelte-ts, else no)}"
+: "${GUIDE_TNB_VERSION:?Phase 2 must answer GUIDE_TNB_VERSION}"
+case "$GUIDE_TNB" in
+  yes|no) : ;;
+  *) echo "GUIDE_TNB must be yes or no, got '$GUIDE_TNB'" >&2; exit 1 ;;
+esac
+
+# The server foundation belongs to the modes that have a server. It is read with a default so a
+# frontend run does not have to answer it, and required in the modes that do.
+nitro_pin=${GUIDE_NITRO_VERSION:-}
+case "$GUIDE_MODE" in
+  backend|fullstack)
+    [ -n "$nitro_pin" ] || {
+      echo "GUIDE_NITRO_VERSION was never answered: every mode with a server pins nitro (Phase 2)" >&2
+      exit 1
+    }
+    ;;
+esac
+
+if [ "$GUIDE_TNB" = yes ]; then
+  echo "note: the TypeScript bridge is in use — tsc --version prints 6.0.3, the classic API's version, and must never be used to assert the TypeScript version"
+fi
+echo "ok  pinned: vite-plus $GUIDE_VP_VERSION (prerelease), TypeScript $GUIDE_TS_VERSION, skills $GUIDE_SKILLS_VERSION, bridge $GUIDE_TNB_VERSION"
+if [ -n "$nitro_pin" ]; then
+  echo "ok  the server foundation is pinned: nitro $nitro_pin (prerelease, no stable v3 line to fall back to)"
+fi
+```
 
 ## Phase 3 — Initialize the skeleton (automatic)
 

@@ -38,6 +38,8 @@ import { ACCEPTED, SELECTORS, selectorNames, shapeOf, whenHolds } from "./lib/sh
 import { discoverProfiles } from "./lib/profiles.mjs";
 import { escapeRegExp } from "./lib/text.mjs";
 import { checkGuideParts } from "./guide-parts.mjs";
+import { checkRouter } from "./router.mjs";
+import { checkFragments } from "./fragments.mjs";
 
 // ---------------------------------------------------------------------------- the shape filter
 //
@@ -343,6 +345,10 @@ export const NOT_SHIPPED = {
     where: "repo",
     why: "this repository's harness mechanism: declared item ids, and one owner each for the shape, the profile set and the record's numbers",
   },
+  "ADR-0015": {
+    where: "repo",
+    why: "the delivery decision: 索引 + 分片 with GUIDE.md as the source, the hand-written 路由表 and the checks that keep them one text",
+  },
 };
 
 // ---------------------------------------------------------------------------------- the checking
@@ -583,6 +589,11 @@ export function profileAnswers(repoRoot) {
  * and the profile set really exercises the whole matrix: every shipped row is selected by at
  * least one profile, every (mode, layout) the profile guard accepts has one, and both answers of
  * the layout's placeholder decision are run in every monorepo arrangement that has it.
+ *
+ * It also runs the checks that read GUIDE.md's own markers, through `extract.mjs`'s grammar: the
+ * 分片 glue back into GUIDE.md (`guide-parts.mjs`), the 索引's 路由表 equals the plan each shape
+ * produces and every `when=` gate is either run by a profile or declared `unrun` (`router.mjs`),
+ * and the copies of a repeated fragment are one text each (`fragments.mjs`).
  */
 export function selfCheck(repoRoot) {
   const failures = [];
@@ -756,6 +767,12 @@ export function selfCheck(repoRoot) {
   // The cut has one implementation (`guide-parts.mjs`); calling its check here means every run and
   // every maintenance edit passes the same door before any plan is extracted.
   for (const failure of checkGuideParts()) failures.push(failure);
+
+  // ---- the 索引's 路由表 is the plan, and the copies of a repeated fragment are one text each.
+  // Both walk GUIDE.md's own markers, through `extract.mjs`'s grammar, so a run that reads only the
+  // 索引 and its own 分片 is reading something the extractor would produce.
+  for (const failure of checkRouter()) failures.push(failure);
+  for (const failure of checkFragments()) failures.push(failure);
 
   return { failures, items, adrs, shippedRows: SHIPPED.length, profiles: profiles.size };
 }

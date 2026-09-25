@@ -134,3 +134,38 @@ cat >> docs/agent-notes.md <<'NOTES'
 NOTES
 echo "ok  frontend-workspace proxy traps appended to docs/agent-notes.md"
 ```
+
+```bash guide:exec id=prov-frontend-monorepo when=mode:frontend&layout:monorepo
+set -euo pipefail
+: "${GUIDE_FRAMEWORK:?Phase 1 must answer GUIDE_FRAMEWORK}"
+installed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+placeholder_answer=${GUIDE_PLACEHOLDER:-not applicable}
+dev_port_answer=${GUIDE_DEV_PORT:-}
+
+choice_rows="| Scaffold template | \`vite:monorepo\` (the app is create-vite's \`${GUIDE_FRAMEWORK}\` app in \`apps/website\`) |
+| Placeholder package | ${placeholder_answer} (\`packages/utils\`) |
+| Dev proxy target | \`${GUIDE_DEV_PROXY:-http://127.0.0.1:3000}\` (\`apps/website/.env\`; the \`/api/\` prefix is stripped) |
+| Server | none: the backend is the address above, and this workspace has no server of its own |"
+scaffold_line="3. Skeleton: \`vp create vite:monorepo\`, the workspace catalog extended and every dependency spec pointed at \`catalog:\`, the app pruned and given its dev proxy, dependencies installed with \`vp install\`."
+server_step="4. Frontend workspace: no server in this project — the app under \`apps/website\` reaches the backend named by \`DEV_PROXY\` through the \`/api/\` proxy in \`apps/website/vite.config.ts\`, whose guard turns a missing variable into a stop instead of an HTML page. Root commands \`dev:website\`, \`check\`, \`ready\`."
+verify_step="8. Verification: format, the workspace-wide static check (\`vp check\`) and \`vp run -r check\`, the workspace build (\`vp run -r build\`) with the app's \`apps/website/dist\`, and a dev-server smoke test from the app's port asserting the app's page and the proxied \`/api/…\` route arriving at the backend without its prefix. Recorded ${installed_at}."
+
+printf '%s\n' "$choice_rows" > .vite-plus-prov-choice
+printf '%s\n' "$scaffold_line" > .vite-plus-prov-scaffold
+printf '%s\n' "$server_step" > .vite-plus-prov-server
+printf '%s\n' "$verify_step" > .vite-plus-prov-verify
+echo "ok  provenance arm frontend/monorepo: choices, skeleton, server and verification rows written"
+```
+
+```bash guide:exec id=report-frontend-monorepo when=mode:frontend&layout:monorepo
+set -euo pipefail
+# The lines Phase 7's report repeats, and only this shape's. See report-backend-single for why they
+# live next to the shape rather than in the shared Phase 7.
+cat <<'REPORT'
+Deliberate — the root is a shell that owns the catalog and the commands, the app is `apps/website`, and the dev proxy lives in that package because that is where the dev server is.
+Deliberate — there is no server anywhere in this workspace; the app's `.env` is committed while `*.local` stays personal; the placeholder package is kept or deleted as answered.
+Deliberate — the app ships no test harness, by the same decision the single-layout frontend makes.
+Not covered — the backend this app proxies to is somebody else's: if the answered address is the placeholder, the proxy is as verified as that address is and a `502` is the honest result. Browser behaviour and production deployment topology are out of scope.
+REPORT
+echo "ok  handoff lines for frontend/monorepo are above"
+```

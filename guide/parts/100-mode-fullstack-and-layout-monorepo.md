@@ -172,3 +172,42 @@ cat >> docs/agent-notes.md <<'NOTES'
 NOTES
 echo "ok  split-shape proxy traps appended to docs/agent-notes.md"
 ```
+
+```bash guide:exec id=prov-fullstack-monorepo when=mode:fullstack&layout:monorepo
+set -euo pipefail
+: "${GUIDE_FRAMEWORK:?Phase 1 must answer GUIDE_FRAMEWORK}"
+nitro_pin=${GUIDE_NITRO_VERSION:-}
+[ -n "$nitro_pin" ] || { echo "GUIDE_NITRO_VERSION was never answered (Phase 2)" >&2; exit 1; }
+nitro_version=$(node -p 'require("./node_modules/nitro/package.json").version')
+installed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+placeholder_answer=${GUIDE_PLACEHOLDER:-not applicable}
+dev_port_answer=${GUIDE_DEV_PORT:-}
+
+choice_rows="| Scaffold template | \`vite:monorepo\` (the frontend app is create-vite's \`${GUIDE_FRAMEWORK}\` app in \`apps/website\`) |
+| Placeholder package | ${placeholder_answer} (\`packages/utils\`) |
+| Server foundation | nitro@${nitro_version} — \`${nitro_pin}\` (prerelease), at the workspace root |
+| Frontend | \`apps/website\`, a separate build and a separate dev server |
+| API origin | the frontend's own dev proxy (\`/api/\` → \`http://127.0.0.1:${dev_port_answer}\`, prefix stripped); production is a reverse proxy with the same rule |"
+scaffold_line="3. Skeleton: \`vp create vite:monorepo\`, the workspace catalog extended with \`nitro\` and every dependency spec pointed at \`catalog:\`, the root server and the app pruned and wired, dependencies installed with \`vp install\`."
+server_step="4. Split shape: the root's \`nitro.config.ts\` (\`serverDir: \"./server\"\`, \`output: { dir: \"dist\" }\`) and \`server/routes/hello.ts\`, \`nitro()\` in the root \`vite.config.ts\` beside \`defaultPackage: \".\"\`, the app pruned to a minimal page, and the app's own \`vite.config.ts\` + \`.env\` carrying the dev proxy with its guard. Root commands \`dev:server\`, \`dev:website\`, \`check\`, \`test\`, \`build\`, \`ready\`."
+verify_step="8. Verification: format, the workspace-wide static check (\`vp check\`) and \`vp run -r check\`, the workspace build (\`vp run -r build\`) with the root server's \`dist/server/index.mjs\` and the app's \`apps/website/dist\`, and smoke tests of the built server and of both dev servers, asserting the app's page, the same-origin \`/api/hello\` on the root port, and the proxied \`/api/hello\` from the app's port arriving as \`/hello\`. Recorded ${installed_at}."
+
+printf '%s\n' "$choice_rows" > .vite-plus-prov-choice
+printf '%s\n' "$scaffold_line" > .vite-plus-prov-scaffold
+printf '%s\n' "$server_step" > .vite-plus-prov-server
+printf '%s\n' "$verify_step" > .vite-plus-prov-verify
+echo "ok  provenance arm fullstack/monorepo: choices, skeleton, server and verification rows written"
+```
+
+```bash guide:exec id=report-fullstack-monorepo when=mode:fullstack&layout:monorepo
+set -euo pipefail
+# The lines Phase 7's report repeats, and only this shape's. See report-backend-single for why they
+# live next to the shape rather than in the shared Phase 7.
+cat <<'REPORT'
+Deliberate — two dev servers on two ports, and the app reaches the workspace's own root server through a dev proxy that strips `/api/` exactly as the production reverse proxy does: the server never learns the prefix exists.
+Deliberate — one version per dependency in the workspace catalog; the app's `.env` is committed while `*.local` stays personal; the placeholder package is kept or deleted as answered.
+Deliberate — the root commands name only what the workspace has: a script naming a deleted package would exit 0 having run nothing.
+Not covered — the one route and the one page; the production reverse proxy is out of scope (the dev proxy is the measured reproduction of its rule, not a deployment); browser hydration after the first paint.
+REPORT
+echo "ok  handoff lines for fullstack/monorepo are above"
+```

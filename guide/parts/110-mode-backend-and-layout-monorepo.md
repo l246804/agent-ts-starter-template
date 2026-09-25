@@ -106,3 +106,39 @@ is a decision: kept as the home for future shared code, or removed.
 - The production artefact is `dist/server/index.mjs`, started with `node dist/server/index.mjs`
   (the `PORT` environment variable is honoured).
 ```
+
+```bash guide:exec id=prov-backend-monorepo when=mode:backend&layout:monorepo
+set -euo pipefail
+: "${GUIDE_FRAMEWORK:?Phase 1 must answer GUIDE_FRAMEWORK}"
+nitro_pin=${GUIDE_NITRO_VERSION:-}
+[ -n "$nitro_pin" ] || { echo "GUIDE_NITRO_VERSION was never answered (Phase 2)" >&2; exit 1; }
+nitro_version=$(node -p 'require("./node_modules/nitro/package.json").version')
+installed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+placeholder_answer=${GUIDE_PLACEHOLDER:-not applicable}
+
+choice_rows="| Scaffold base | ${GUIDE_FRAMEWORK} (the app it writes is deleted in the same run: a backend project has no frontend) |
+| Placeholder package | ${placeholder_answer} (\`packages/utils\`) |
+| Server foundation | nitro@${nitro_version} — \`${nitro_pin}\` (prerelease), at the workspace root |"
+scaffold_line="3. Skeleton: \`vp create vite:monorepo\`, the workspace catalog extended with \`nitro\` and every dependency spec pointed at \`catalog:\`, the template's app deleted, the root server wired, dependencies installed with \`vp install\`."
+server_step="4. Backend workspace: the root's \`nitro.config.ts\` (\`serverDir: \"./server\"\`, \`output: { dir: \"dist\" }\`) and \`server/routes/hello.ts\`, \`nitro()\` in the root \`vite.config.ts\` beside \`defaultPackage: \".\"\`, and the root commands re-pointed — \`dev:server\`, \`check\`, \`test\`, \`build\`, \`ready\`, none of them naming the deleted package."
+verify_step="8. Verification: format, the workspace-wide static check (\`vp check\`) and \`vp run -r check\`, the workspace build (\`vp run -r build\`, which builds the root server) leaving \`dist/server/index.mjs\` with no \`.output/\`, and smoke tests of the built artefact and of the root dev server. Recorded ${installed_at}."
+
+printf '%s\n' "$choice_rows" > .vite-plus-prov-choice
+printf '%s\n' "$scaffold_line" > .vite-plus-prov-scaffold
+printf '%s\n' "$server_step" > .vite-plus-prov-server
+printf '%s\n' "$verify_step" > .vite-plus-prov-verify
+echo "ok  provenance arm backend/monorepo: choices, skeleton, server and verification rows written"
+```
+
+```bash guide:exec id=report-backend-monorepo when=mode:backend&layout:monorepo
+set -euo pipefail
+# The lines Phase 7's report repeats, and only this shape's. See report-backend-single for why they
+# live next to the shape rather than in the shared Phase 7.
+cat <<'REPORT'
+Deliberate — the workspace root *is* the server, and the app the monorepo template wrote is deleted in the same run because a backend project has no client.
+Deliberate — the root commands are re-pointed at what exists (`dev:server`, `check`, `test`, `build`, `ready`): the template's `dev` script named a package that no longer exists, and a script naming a missing package is a silent no-op.
+Deliberate — pinned prereleases; Nitro's output lands in the root's `dist/`, not `.output/`; the placeholder package is kept or deleted as answered.
+Not covered — only the root server's one route is verified; a real route table and production deployment topology are out of scope.
+REPORT
+echo "ok  handoff lines for backend/monorepo are above"
+```

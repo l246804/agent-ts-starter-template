@@ -33,6 +33,19 @@ has no root server, so its target is the same decision the single layout asks �
 single layout's; the second is both workspace arrangements', and the one thing it branches on is
 where the target comes from.
 
+This is a decision point, and it asks for two things at once — both belong in the same question,
+before anything is written:
+
+- **the backend address** (`GUIDE_DEV_PROXY`), recommended as the `http://127.0.0.1:3000`
+  placeholder when nothing better is known, with the disclosure that a proxy pointed at a port
+  nothing listens on answers `502` rather than serving the page.
+- **the route the smoke test should call** (`GUIDE_PROXY_SMOKE_PATH`, e.g. `/hello`). It must be a
+  route the backend really serves: it is the proof that the proxy strips the `/api/` prefix, and it
+  has no default, because a guessed path turns the check into a failed verification. (Not asked in
+  the split shape: there the smoke path is this workspace's own route, which the guide writes.)
+
+The receipt for this point is the proxy step's own `ok  dev proxy wired …` line.
+
 ```bash guide:exec id=proxy when=mode:frontend&layout:single
 set -euo pipefail
 # The dev-proxy target is the one answer with a placeholder: a pure frontend's backend is somebody
@@ -170,4 +183,34 @@ cat >> docs/agent-notes.md <<'NOTES'
   every `/api/*` call is a `502`.
 NOTES
 echo "ok  dev-proxy traps appended to docs/agent-notes.md"
+```
+
+```bash guide:exec id=prov-frontend-single when=mode:frontend&layout:single
+set -euo pipefail
+: "${GUIDE_FRAMEWORK:?Phase 1 must answer GUIDE_FRAMEWORK}"
+installed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+choice_rows="| Framework template | ${GUIDE_FRAMEWORK} |
+| Dev proxy target | ${GUIDE_DEV_PROXY:-http://127.0.0.1:3000} |"
+scaffold_line="3. Skeleton: \`vp create vite:application\` + \`--template ${GUIDE_FRAMEWORK}\`, alias map, configuration trimmed, ignore rules refined, dependencies installed."
+server_step="4. Dev proxy: \`DEV_PROXY\` in \`.env\`, transformer wired with a guard."
+verify_step="8. Verification: format, static check with a live type checker, build script, and a dev-server smoke test through the proxy. Recorded ${installed_at}."
+
+printf '%s\n' "$choice_rows" > .vite-plus-prov-choice
+printf '%s\n' "$scaffold_line" > .vite-plus-prov-scaffold
+printf '%s\n' "$server_step" > .vite-plus-prov-server
+printf '%s\n' "$verify_step" > .vite-plus-prov-verify
+echo "ok  provenance arm frontend/single: choices, skeleton, server and verification rows written"
+```
+
+```bash guide:exec id=report-frontend-single when=mode:frontend&layout:single
+set -euo pipefail
+# The lines Phase 7's report repeats, and only this shape's. See report-backend-single for why they
+# live next to the shape rather than in the shared Phase 7.
+cat <<'REPORT'
+Deliberate — the toolchain is a pinned prerelease, and the dev proxy's guard is one unconditional line: an unset `DEV_PROXY` stops the dev server instead of silently answering the app's HTML at exit 0.
+Deliberate — `.env` is committed while `*.local` stays personal, and the proxied prefix is a regular expression (`/api/`, trailing slash included).
+Not covered — the backend the proxy points at is somebody else's: the placeholder address answers `502`, which is the loud half of "there is no backend there". Browser behaviour and production deployment topology are out of scope.
+REPORT
+echo "ok  handoff lines for frontend/single are above"
 ```

@@ -22,6 +22,19 @@ actually happened, and exits non-zero unless every profile passed.
   exist in the test and not in the document.
 - **The verify block is the assertion set.** It is extracted and run as-is; the harness does
   not keep a second copy of those checks.
+- **The guide has two views, and they are one text.** The product is delivered as an index plus
+  parts (`guide/index.md`, `guide/parts/*.md`): a client run fetches the index and only the parts
+  its own answers select. `GUIDE.md` is the source — `e2e/guide-parts.mjs --write` cuts the parts
+  from it and never writes it, and `--check` proves the parts glued back in the manifest's order
+  are byte-identical to `GUIDE.md`. The index carries a hand-written **路由表**: which files a
+  (形态, 布局) run fetches and which step ids it runs, in order, plus one line per answer-only gate
+  such as `setup:yes`, with `unrun` on a gate no profile exercises. `e2e/router.mjs` recomputes
+  every row from the markers in `GUIDE.md`, through the extractor's own `when=` implementation, and
+  requires them to match — a step added, a gate changed or a row forgotten fails before a run
+  starts, and every `when=` value in the guide is either run by a profile or declared. A few
+  fragments are repeated inside steps on purpose (a step has to stand alone); `e2e/fragments.mjs`
+  declares how many copies each one has and requires them to be one text, so a diverging copy and
+  an added or deleted one both fail.
 - **Outcomes are checked from outside**: `e2e/assert.mjs` inspects the produced project — the
   file tree, where the documents landed (the ADR landing point the profile's answer makes the
   convention resolve, the `## Agent skills` brief the setup flow writes when its branch runs, the
@@ -170,6 +183,12 @@ mechanical half; the guide is written for the half that needs judgement:
   complete in the other direction: every (mode, layout) the profile guard implements has a profile
   file, and every monorepo arrangement runs both answers of the placeholder decision. A new
   arrangement is a failing check until it has a profile, never a quiet gap.
+- **The delivery itself, observed on a real client run.** The harness runs the guide's own text and
+  checks that the 分片 glue back into `GUIDE.md` and that the 路由表 equals the plan — but it does
+  not fetch the parts the way a client agent does, so "the agent fetched only its own branch, found
+  every step id in its receipt, and ran no other branch's step" is a fact nobody here has measured.
+  That observation is the next evidence for the delivery form, and it needs a run with an agent on
+  the other end of the URL (ADR-0015 records the same gap).
 
 ## Environment notes
 

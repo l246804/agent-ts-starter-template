@@ -533,3 +533,40 @@ cat >> docs/agent-notes.md <<'NOTES'
 NOTES
 echo "ok  SSR traps appended to docs/agent-notes.md"
 ```
+
+```bash guide:exec id=prov-fullstack-single when=mode:fullstack&layout:single
+set -euo pipefail
+: "${GUIDE_FRAMEWORK:?Phase 1 must answer GUIDE_FRAMEWORK}"
+nitro_pin=${GUIDE_NITRO_VERSION:-}
+[ -n "$nitro_pin" ] || { echo "GUIDE_NITRO_VERSION was never answered (Phase 2)" >&2; exit 1; }
+nitro_version=$(node -p 'require("./node_modules/nitro/package.json").version')
+installed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+choice_rows="| Scaffold base | ${GUIDE_FRAMEWORK} |
+| Rendering | SSR: the document is rendered by \`src/entry-server.tsx\` and hydrated by \`src/entry-client.tsx\` (there is no \`index.html\` template) |
+| Server foundation | nitro@${nitro_version} — \`${nitro_pin}\` (prerelease) |
+| API origin | same origin as the page (\`/api/…\`); no dev proxy, no \`.env\` |"
+scaffold_line="3. Skeleton: \`vp create vite:application\` + \`--template ${GUIDE_FRAMEWORK}\`, alias map, configuration trimmed, ignore rules refined, dependencies installed."
+server_step="4. SSR shape: \`index.html\` and the SPA entry deleted, \`src/entry-server.tsx\` + \`src/entry-client.tsx\` + \`src/App.tsx\` written, \`nitro\` pinned and installed, \`serverDir: \"./server\"\` with \`output: { dir: \"dist\" }\`, \`nitro()\` registered inside the scaffold's \`lazyPlugins\` array, and the client entry declared in the client environment. No dev proxy: the page and the API share one origin."
+verify_step="8. Verification: format, static check with a live type checker over both \`src/\` and \`server/\`, the build script with its client bundle in \`dist/public/assets\` and its SSR renderer in \`dist/server/_ssr\`, and smoke tests of the built \`dist/server/index.mjs\` and of the dev server, asserting the render marker and the same-origin \`/api/hello\`. Recorded ${installed_at}."
+
+printf '%s\n' "$choice_rows" > .vite-plus-prov-choice
+printf '%s\n' "$scaffold_line" > .vite-plus-prov-scaffold
+printf '%s\n' "$server_step" > .vite-plus-prov-server
+printf '%s\n' "$verify_step" > .vite-plus-prov-verify
+echo "ok  provenance arm fullstack/single: choices, skeleton, server and verification rows written"
+```
+
+```bash guide:exec id=report-fullstack-single when=mode:fullstack&layout:single
+set -euo pipefail
+# The lines Phase 7's report repeats, and only this shape's. See report-backend-single for why they
+# live next to the shape rather than in the shared Phase 7.
+cat <<'REPORT'
+Deliberate — the toolchain and nitro are pinned prereleases.
+Deliberate — this shape keeps no `index.html` at all: with no template Nitro installs its own SSR renderer, and deleting the template removes the silent `<!--ssr-outlet-->` failure mode instead of guarding against it. Verification asserts the render marker on top.
+Deliberate — `src/` and `server/` are one TypeScript program, and the page and the API share one origin: no dev proxy, no `.env`.
+Not covered — only the one page and the one API route are verified; anything the browser does after the first paint (hydration mismatches, event handlers, HMR) is outside this verification by construction.
+Not covered — production deployment topology.
+REPORT
+echo "ok  handoff lines for fullstack/single are above"
+```

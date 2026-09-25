@@ -11,5 +11,6 @@ This repo initializes an empty directory into a Vite+-managed TypeScript project
 ## Consequences
 
 - The guide must be self-sufficient: fetchable by URL (or pasteable), and it must never assume this repo is present on the machine.
+- The delivery form was narrowed later: the same text ships as an 索引 plus 分片, and a run takes only its own branch — see ADR-0015. What it did not change: there is still one document (`GUIDE.md`), still fetched by the agent, still the single source the harness reads.
 - Anything the guide cannot decide belongs in a 决策点 (see `CONTEXT.md`), not in a hidden default.
 - The repo's own tooling (`AGENTS.md`, `docs/adr/`, issue tracker) serves its maintenance, not its consumption.

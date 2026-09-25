@@ -1,0 +1,125 @@
+#!/usr/bin/env node
+/**
+ * The copies of a repeated fragment, and the check that keeps them one text.
+ *
+ * A step has to be runnable on its own, so a few fragments of it are repeated in GUIDE.md verbatim:
+ * the package-manager dispatch appears once per step that needs a package manager, the application
+ * manifest's key order once per step that rewrites `package.json`, and so on. The duplication is
+ * deliberate; a *divergence* between copies is not — it is how one rule quietly becomes two, with
+ * nothing red.
+ *
+ * Each entry below names one such fragment, how many copies of it the guide carries, and how to
+ * find them. The check requires exactly that many copies and byte-identical text across them
+ * (leading and trailing whitespace aside, because a nested copy is indented). It is bidirectional
+ * on purpose: a copy that drifts fails, and a copy that is added or deleted fails too — the count in
+ * this file is a fact about the guide, and moving it is how a maintainer says "yes, and here is the
+ * new text".
+ *
+ * What this does *not* check: fragments whose copies legitimately differ per shape (the planted
+ * type-error control differs by path and log name, the workspace manifest key order by the keys a
+ * package has). Those are declared as separate *forms* of one protocol, or not at all — a declared
+ * family whose copies were never identical would be a check that cannot fail, which is worse than no
+ * check.
+ */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
+const GUIDE = join(REPO, "GUIDE.md");
+
+const PM_CASE = /^[ \t]*case "\$\{?GUIDE_PM\}?" in$/;
+const ESAC = /^[ \t]*esac[ \t]*$/;
+
+/**
+ * `line` finds single-line fragments; `open`/`close` bound a block, and `seed` (optional) picks the
+ * form: only blocks containing a line that matches it belong to the family.
+ */
+const FRAGMENTS = [
+  {
+    name: "the `dlx` package-manager dispatch",
+    copies: 2,
+    open: PM_CASE,
+    close: ESAC,
+    seed: /^pnpm\) dlx\(\) \{ pnpm dlx "\$@"; \} ;;$/,
+  },
+  {
+    name: "the `install` package-manager dispatch",
+    copies: 4,
+    open: PM_CASE,
+    close: ESAC,
+    seed: /^pnpm\) pnpm install --no-frozen-lockfile ;;$/,
+  },
+  {
+    name: "the application manifest key order",
+    copies: 3,
+    line: /^const order = \[.*"devEngines"\];$/,
+  },
+  {
+    name: "the missing-nitro-pin assertion",
+    copies: 5,
+    line: /^[ \t]*\[ -n "\$nitro_pin" \] \|\| \{ echo "GUIDE_NITRO_VERSION was never answered \(Phase 2\)" >&2; exit 1; \}$/,
+  },
+];
+
+const normalize = (text) => text.map((line) => line.trim()).join("\n").replace(/\n+$/, "");
+
+/** Every occurrence of one fragment: `{ lines, text }`, in document order. */
+function occurrences(lines, fragment) {
+  if (fragment.line) {
+    return lines
+      .map((line, index) => ({ text: line.trim(), first: index + 1, last: index + 1 }))
+      .filter((entry) => fragment.line.test(entry.text));
+  }
+  const found = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!fragment.open.test(lines[i])) continue;
+    let j = i;
+    while (j < lines.length && !fragment.close.test(lines[j])) j += 1;
+    const body = lines.slice(i, j + 1);
+    if (fragment.seed && !body.some((line) => fragment.seed.test(line.trim()))) {
+      i = j;
+      continue;
+    }
+    found.push({ text: normalize(body), first: i + 1, last: j + 1 });
+    i = j;
+  }
+  return found;
+}
+
+/** The failures a caller (coverage.mjs --self-check) can push onto its own list. */
+export function checkFragments() {
+  const failures = [];
+  const lines = readFileSync(GUIDE, "utf8").split("\n");
+  for (const fragment of FRAGMENTS) {
+    const found = occurrences(lines, fragment);
+    if (found.length !== fragment.copies) {
+      failures.push(
+        `${found.length} copies of ${fragment.name} in GUIDE.md, ${fragment.copies} declared — a copy was added or deleted: ${
+          found.map((entry) => `line ${entry.first}`).join(", ") || "none"
+        }`,
+      );
+      continue;
+    }
+    const [first, ...rest] = found;
+    for (const copy of rest) {
+      if (copy.text !== first.text) {
+        failures.push(
+          `${fragment.name} diverges: the copy at line ${copy.first} is not the text at line ${first.first} — a repeated fragment is one text, and changing one copy makes it two rules`,
+        );
+      }
+    }
+  }
+  return failures;
+}
+
+export { FRAGMENTS };
+
+if (process.argv[1] && process.argv[1].endsWith("fragments.mjs")) {
+  const failures = checkFragments();
+  if (failures.length) {
+    for (const failure of failures) console.error(`fragments: ${failure}`);
+    process.exit(1);
+  }
+  console.log(`fragments: ok — ${FRAGMENTS.length} repeated fragments, every copy identical`);
+}
