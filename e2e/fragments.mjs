@@ -16,10 +16,10 @@
  * new text".
  *
  * What this does *not* check: fragments whose copies legitimately differ per shape (the planted
- * type-error control differs by path and log name, the workspace manifest key order by the keys a
- * package has). Those are declared as separate *forms* of one protocol, or not at all — a declared
- * family whose copies were never identical would be a check that cannot fail, which is worse than no
- * check.
+ * type-error control's four *forms* differ by probe path and log name — the server form has three
+ * copies and is declared, the other three have one each and nothing to compare; the workspace
+ * manifest key order differs by the keys a package has). A declared family whose copies were never
+ * identical would be a check that cannot fail, which is worse than no check.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -67,6 +67,23 @@ const FRAGMENTS = [
     name: "the missing-nitro-pin assertion",
     copies: 5,
     line: /^[ \t]*\[ -n "\$nitro_pin" \] \|\| \{ echo "GUIDE_NITRO_VERSION was never answered \(Phase 2\)" >&2; exit 1; \}$/,
+  },
+  {
+    // The refusal every package-manager dispatch ends with: one message, wherever a step needs a
+    // package manager. It drifts the moment one site is reworded or re-cased.
+    name: "the package-manager refusal arm",
+    copies: 7,
+    line: /^\*\) echo "unsupported package manager: \$GUIDE_PM" >&2; exit 1 ;;$/,
+  },
+  {
+    // The control that says a green check is meaningful: plant a type error, require the checker to
+    // catch *that* error. The blocks differ by probe path and log name across shapes — those single
+    // copies have nothing to compare — but three of them sit under `server/` with the same log name,
+    // and those three must stay one text.
+    name: "the planted type-error check (server form)",
+    copies: 3,
+    open: /^grep -q 'TS2322' \.vite-plus-server-control\.log \|\| \{$/,
+    close: /^\}$/,
   },
 ];
 
