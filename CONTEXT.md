@@ -7,8 +7,24 @@ A framework-agnostic TypeScript starting point for agent-driven work. This repo'
 ### The artifact
 
 **指南 (guide)**:
-The repo's only product — the ordered steps an agent reads and executes, every command non-interactive, ending in a target project ready for work. Shipped as `GUIDE.md`, whose `guide:` marked blocks are both the instructions and the E2E harness's executable plan.
+The repo's only product — the ordered steps an agent reads and executes, every command non-interactive, ending in a target project ready for work. Delivered as 索引 + 分片 (a run takes only its own); glued in order they are `GUIDE.md`, whose `guide:` marked blocks are both the instructions and the E2E harness's executable plan.
 _Avoid_: 模板, 初始模板, 文档, recipe
+
+**索引 (index)**:
+The one text the client agent fetches first: the head, the 预答 table, Phase 0–2 (preflight, profile-guard) and this run's 路由表.
+_Avoid_: 目录, README, 入口
+
+**分片 (part)**:
+A slice of the guide's body that a run may take on its own; its edge is one `when=` gate, and the ungated steps belong to the shared slice.
+_Avoid_: 片段, 章节, 模块
+
+**路由表 (router)**:
+The table in the 索引 that names, per profile, which 分片 to take and which step ids that run executes. It is machine-checkable against the plan.
+_Avoid_: 目录, 清单
+
+**拼接自检 (assembly check)**:
+The offline check that keeps the two views of the guide together: the 分片 glued in order must equal `GUIDE.md`, and each profile's glue order must equal the order it actually executes.
+_Avoid_: 一致性测试, 校验脚本
 
 **预答 (pre-answered answers)**:
 The decision points supplied up front as `GUIDE_*` environment variables, which is what lets the whole flow run unattended — and what the E2E harness supplies from a profile file.

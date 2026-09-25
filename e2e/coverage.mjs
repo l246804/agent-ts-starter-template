@@ -37,6 +37,7 @@ import { join } from "node:path";
 import { ACCEPTED, SELECTORS, selectorNames, shapeOf, whenHolds } from "./lib/shape.mjs";
 import { discoverProfiles } from "./lib/profiles.mjs";
 import { escapeRegExp } from "./lib/text.mjs";
+import { checkGuideParts } from "./guide-parts.mjs";
 
 // ---------------------------------------------------------------------------- the shape filter
 //
@@ -750,6 +751,11 @@ export function selfCheck(repoRoot) {
       failures.push(`${key} is not one pin across the profiles: ${detail}`);
     }
   }
+
+  // ---- the guide's two views agree: the 分片 on disk glue back into GUIDE.md, byte for byte.
+  // The cut has one implementation (`guide-parts.mjs`); calling its check here means every run and
+  // every maintenance edit passes the same door before any plan is extracted.
+  for (const failure of checkGuideParts()) failures.push(failure);
 
   return { failures, items, adrs, shippedRows: SHIPPED.length, profiles: profiles.size };
 }

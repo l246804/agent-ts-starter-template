@@ -45,6 +45,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
 import { readAnswers } from "./lib/answers.mjs";
 
 const KINDS = new Set(["exec", "file", "verify"]);
@@ -85,7 +86,7 @@ function loadAnswers(path) {
  * CommonMark-ish fence scan. Returns every fenced block with its raw body so the
  * extracted text is byte-identical to what GUIDE.md contains.
  */
-function scanFences(text) {
+export function scanFences(text) {
   const lines = text.split("\n");
   const blocks = [];
   let i = 0;
@@ -111,7 +112,7 @@ function scanFences(text) {
   return blocks;
 }
 
-function parseInfo(info) {
+export function parseInfo(info) {
   const attrs = {};
   let kind = null;
   const tokens = info.length ? info.split(/\s+/) : [];
@@ -315,4 +316,6 @@ function main() {
   console.log(`extract: ${manifest.length} steps -> ${relative(process.cwd(), out)}`);
 }
 
-main();
+// Importing this module (e.g. from e2e/guide-parts.mjs, which reuses the one implementation of the
+// marker grammar) must not run the extractor. Only a direct `node e2e/extract.mjs …` does.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
