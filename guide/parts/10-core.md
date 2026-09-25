@@ -1135,6 +1135,16 @@ verify_step=$(cat .vite-plus-prov-verify)
 # survives the staging directory, and verification reads it back to prove the files did not move.
 [ -s .vite-plus-adr-landed ] || { echo "adr-land recorded nothing about what it installed" >&2; exit 1; }
 adr_rows=$(awk '{ printf "| `%s` | `%s` |\n", $2, $1 }' .vite-plus-adr-landed)
+# One row per landed document, counted rather than assumed. Verification checks the documents this
+# table names, so a table that lists fewer of them than landed would leave the rest unchecked while
+# printing a green line — the table is the only list of what to check.
+manifest_rows=$(awk 'NF { rows += 1 } END { print rows + 0 }' .vite-plus-adr-landed)
+table_rows=$(printf '%s\n' "$adr_rows" | awk '/^\| `/ { rows += 1 } END { print rows + 0 }')
+[ "$manifest_rows" -gt 0 ] || { echo ".vite-plus-adr-landed names no document" >&2; exit 1; }
+[ "$manifest_rows" = "$table_rows" ] || {
+  echo "the record's landed-ADR table has $table_rows row(s) for $manifest_rows landed document(s): verification would check fewer documents than landed" >&2
+  exit 1
+}
 
 # The setup decision point's record, and — in the deferred branch — the assumption it leaves
 # behind. The paragraph is what makes the landing point above revisitable: it names the documents
