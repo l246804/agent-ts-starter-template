@@ -2837,14 +2837,17 @@ alternative fails quietly.
   evidence.
 AGENTS
 
-# The mode-specific rules are appended as their own block: a frontend project has no server to
-# describe and a backend project has no dev proxy, so each profile gets the rules that are true of
-# it instead of the union of all of them. The layout is part of the case because a fullstack
-# project has two shapes: SSR (server and page in one project) and split (server at the workspace
-# root, page in apps/website) — the same mode, two different sets of truths.
-case "$GUIDE_MODE/$GUIDE_LAYOUT" in
-  frontend/single)
-    cat >> AGENTS.md <<'FRONTEND'
+echo "ok  constraints section appended"
+```
+
+The rules that only one arrangement needs are appended by that arrangement's own step: the shape
+is in the marker (`when=`), so a run executes exactly one of the six below, and its `ok` line names
+which set the project received.
+
+```bash guide:exec id=agents-rules-frontend-single when=mode:frontend&layout:single
+set -euo pipefail
+
+cat >> AGENTS.md <<'FRONTEND'
 
 ### Development proxy
 
@@ -2861,9 +2864,13 @@ case "$GUIDE_MODE/$GUIDE_LAYOUT" in
   suite that goes stale. Adding one is an explicit decision — say what it is for, and record
   the reason in an ADR.
 FRONTEND
-    ;;
-  backend/single)
-    cat >> AGENTS.md <<'BACKEND'
+echo "ok  frontend/single rules appended"
+```
+
+```bash guide:exec id=agents-rules-backend-single when=mode:backend&layout:single
+set -euo pipefail
+
+cat >> AGENTS.md <<'BACKEND'
 
 ### Server
 
@@ -2890,9 +2897,13 @@ FRONTEND
   under `server/routes/` and `server/api/` into a route, so a test in there would be served
   rather than run.
 BACKEND
-    ;;
-  fullstack/single)
-    cat >> AGENTS.md <<'FULLSTACK'
+echo "ok  backend/single rules appended"
+```
+
+```bash guide:exec id=agents-rules-fullstack-single when=mode:fullstack&layout:single
+set -euo pipefail
+
+cat >> AGENTS.md <<'FULLSTACK'
 
 ### Server
 
@@ -2936,9 +2947,13 @@ BACKEND
   under `server/routes/` and `server/api/` into a route, so a test in there would be served
   rather than run.
 FULLSTACK
-    ;;
-  fullstack/monorepo)
-    cat >> AGENTS.md <<'SPLIT'
+echo "ok  fullstack/single (SSR) rules appended"
+```
+
+```bash guide:exec id=agents-rules-fullstack-monorepo when=mode:fullstack&layout:monorepo
+set -euo pipefail
+
+cat >> AGENTS.md <<'SPLIT'
 
 ### Workspace (monorepo)
 
@@ -3011,9 +3026,13 @@ FULLSTACK
 - The frontend app ships no test harness by decision — a page-iteration loop is faster without a
   suite that goes stale — and that is exactly the case `vp run -r` is built to skip.
 SPLIT
-    ;;
-  backend/monorepo)
-    cat >> AGENTS.md <<'BACKENDWORKSPACE'
+echo "ok  fullstack/monorepo (split) rules appended"
+```
+
+```bash guide:exec id=agents-rules-backend-monorepo when=mode:backend&layout:monorepo
+set -euo pipefail
+
+cat >> AGENTS.md <<'BACKENDWORKSPACE'
 
 ### Workspace (monorepo)
 
@@ -3070,9 +3089,13 @@ SPLIT
 - The root's runner is wired and empty: `vp test --passWithNoTests` exits 0 with no test files.
   That is the configured state, not coverage — a green test command means the runner works.
 BACKENDWORKSPACE
-    ;;
-  frontend/monorepo)
-    cat >> AGENTS.md <<'FRONTENDWORKSPACE'
+echo "ok  backend/monorepo (workspace) rules appended"
+```
+
+```bash guide:exec id=agents-rules-frontend-monorepo when=mode:frontend&layout:monorepo
+set -euo pipefail
+
+cat >> AGENTS.md <<'FRONTENDWORKSPACE'
 
 ### Workspace (monorepo)
 
@@ -3122,8 +3145,16 @@ BACKENDWORKSPACE
 - A package that does need tests keeps them in its own `tests/` with its own script;
   `vp run -r test` runs the packages that define one and skips the rest silently.
 FRONTENDWORKSPACE
-    ;;
-esac
+echo "ok  frontend/monorepo (workspace) rules appended"
+```
+
+```bash guide:exec id=agents-md-tail
+set -euo pipefail
+
+# The closing line and the checks read the landing point again: shell state does not cross a
+# step boundary, so this step re-reads what adr-convention wrote.
+adr_dir=$(cat .vite-plus-adr-dir)
+[ -n "$adr_dir" ] || { echo "adr-convention resolved no landing point" >&2; exit 1; }
 
 cat >> AGENTS.md <<'AGENTS'
 
@@ -3164,6 +3195,7 @@ grep -q '## Project constraints' AGENTS.md
 grep -qF "\`$adr_dir/\`" AGENTS.md
 echo "ok  constraints section appended, tool-owned block preserved, ADR directory named as $adr_dir/"
 ```
+
 
 The inherited ADRs are shipped as text below, into a staging directory, because their landing
 point is the one `adr-convention` just resolved: `adr-land` installs them where that step said,

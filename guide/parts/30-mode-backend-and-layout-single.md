@@ -246,3 +246,36 @@ echo "ok  a planted type error in server/routes was caught (TS2322)"
 }
 echo "ok  build output is dist/server/index.mjs, with no .output/ beside it"
 ```
+
+```bash guide:exec id=agents-rules-backend-single when=mode:backend&layout:single
+set -euo pipefail
+
+cat >> AGENTS.md <<'BACKEND'
+
+### Server
+
+- The server is **Nitro v3 as a Vite plugin**, registered in the `plugins` array of
+  `vite.config.ts`. An import without that call is silently inert: `vp check` still exits 0 and
+  every route 404s.
+- Routes are files under `server/routes/`, and their URL is the file path without any prefix.
+  `server/api/` carries an `/api` prefix by default; do not move a route there unless that
+  prefix is what you want.
+- `nitro.config.ts` sets `output: { dir: "dist" }`, the directory the ignore rules already
+  cover. A build that writes Nitro's default `.output/` instead makes `vp fmt` and `vp check`
+  fail on the build's own artefacts, because those commands take their file set from the ignore
+  rules.
+- Server code imports explicitly (`nitro`, `nitro/h3`, `nitro/types`): v3 has no auto-imports,
+  so an undeclared global is a type error instead of a runtime surprise.
+- The production artefact is the built bundle — `node dist/server/index.mjs` — and `nitro`
+  itself is a devDependency, like the rest of the toolchain.
+
+### Tests
+
+- The runner is wired and empty: `vp test --passWithNoTests` exits 0 with no test files. That
+  is the configured state, not coverage — a green test command means the runner works.
+- Tests live in `tests/` at the project root, never under `server/`: Nitro compiles every file
+  under `server/routes/` and `server/api/` into a route, so a test in there would be served
+  rather than run.
+BACKEND
+echo "ok  backend/single rules appended"
+```

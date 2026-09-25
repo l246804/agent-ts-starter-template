@@ -120,6 +120,33 @@ esac
 echo "ok  dev proxy wired: /api/* -> $dev_proxy_answer with the prefix stripped"
 ```
 
+The rules that only one arrangement needs are appended by that arrangement's own step: the shape
+is in the marker (`when=`), so a run executes exactly one of the six below, and its `ok` line names
+which set the project received.
+
+```bash guide:exec id=agents-rules-frontend-single when=mode:frontend&layout:single
+set -euo pipefail
+
+cat >> AGENTS.md <<'FRONTEND'
+
+### Development proxy
+
+- `DEV_PROXY` lives in `.env` and is committed; personal overrides go in `.env.local` or
+  `.env.development.local`. The one-line guard in `vite.config.ts` is deliberate: without it,
+  a missing variable makes `/api/*` answer `200` with this app's HTML instead of failing.
+- The proxy prefix is a regular expression and is written `/api/` with the trailing slash.
+- Verification of the proxy means a request through the **frontend** port, asserting JSON —
+  an HTML answer on an `/api` path is the failure mode, not a success.
+
+### Tests
+
+- This profile ships no test harness by decision: a page-iteration loop is faster without a
+  suite that goes stale. Adding one is an explicit decision — say what it is for, and record
+  the reason in an ADR.
+FRONTEND
+echo "ok  frontend/single rules appended"
+```
+
 ```bash guide:exec id=notes-proxy when=mode:frontend&layout:single
 set -euo pipefail
 

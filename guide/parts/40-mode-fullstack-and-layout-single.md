@@ -381,6 +381,56 @@ echo "ok  a planted type error in server/routes/api/ was caught (TS2322)"
 echo "ok  build output: client bundles in dist/public/assets, the SSR renderer in dist/server/_ssr, no .output/"
 ```
 
+```bash guide:exec id=agents-rules-fullstack-single when=mode:fullstack&layout:single
+set -euo pipefail
+
+cat >> AGENTS.md <<'FULLSTACK'
+
+### Server
+
+- The server is **Nitro v3 as a Vite plugin**, registered inside the scaffold's `lazyPlugins`
+  array in `vite.config.ts`: `plugins: lazyPlugins(() => [nitro(), react()])`. A second
+  top-level `plugins` key is a duplicate object key — JS keeps one of them, and the plugin it
+  drops is silently gone.
+- The API is **same-origin**: routes live under `server/routes/api/`, which is why they answer
+  `/api/…`. There is no `DEV_PROXY` and no proxy in this project — the page and the API are one
+  origin, and a proxy here would be a second mechanism for a problem that does not exist.
+- `nitro.config.ts` sets `output: { dir: "dist" }`, the directory the ignore rules already
+  cover. A build that writes Nitro's default `.output/` instead makes `vp fmt` and `vp check`
+  fail on the build's own artefacts, because those commands take their file set from the ignore
+  rules.
+- Server code imports explicitly (`nitro`, `nitro/h3`, `nitro/types`): v3 has no auto-imports,
+  so an undeclared global is a type error instead of a runtime surprise.
+- The production artefact is the built bundle — `node dist/server/index.mjs` — and `nitro`
+  itself is a devDependency, like the rest of the toolchain.
+
+### Rendering (SSR)
+
+- The page is rendered by `src/entry-server.tsx` and hydrated by `src/entry-client.tsx`; the two
+  must render the same tree, because hydration compares the browser's tree with the server's.
+- There is deliberately **no `index.html`**. Nitro uses that file as the renderer template, and
+  the `<!--ssr-outlet-->` comment inside it is the only channel into the page: a template without
+  the comment is still detected, still logged, and still answers `/` with the plain client shell
+  at exit 0. Adding a template back re-introduces a silent failure whose only warning is the
+  smoke test's missing render marker.
+- The SSR entry default-exports an object with a `fetch` method — there is no `render()`
+  contract — and the document it returns must carry the client's assets (`?assets=client` and
+  `?assets=ssr`, merged), which is why `environments.client.build.rollupOptions.input` names
+  `src/entry-client.tsx`: without it Vite has no client entry to build.
+- The SSR entry is the catch-all: any path no route claims is rendered by it, including an
+  unknown `/api/…` path. API routes still answer first.
+
+### Tests
+
+- The runner is wired and empty: `vp test --passWithNoTests` exits 0 with no test files. That
+  is the configured state, not coverage — a green test command means the runner works.
+- Tests live in `tests/` at the project root, never under `server/`: Nitro compiles every file
+  under `server/routes/` and `server/api/` into a route, so a test in there would be served
+  rather than run.
+FULLSTACK
+echo "ok  fullstack/single (SSR) rules appended"
+```
+
 ```markdown guide:file path=.vite-plus-inherited-adrs/0004-ssr-shape.md when=mode:fullstack&layout:single
 # The SSR shape renders the document on the server, and keeps no `index.html`
 
