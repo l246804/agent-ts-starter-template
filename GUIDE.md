@@ -25,38 +25,39 @@ and this table) and one file per `when=` gate. A run fetches the index and then 
 own answers select** — the other shapes' text is not read at all, rather than skimmed and skipped.
 
 The table below is the whole routing decision. Read the row for your `GUIDE_MODE`/`GUIDE_LAYOUT`,
-fetch exactly the files it names, and run exactly the steps it lists, in that order. Print that step
-list before you start: it is the receipt this delivery is checked against. If a file or a step is
-missing, **stop and report which one** — fetching the whole `GUIDE.md` instead would throw away the
-one property the split exists for.
+fetch exactly the files it names, and run exactly the steps it lists, in that order. Each entry is
+the token that finds that step in the text — `id=…` for a step, `path=…` for a document to write.
+Print that list before you start: it is the receipt this delivery is checked against. If a file or a
+step is missing, **stop and report which one** — fetching the whole `GUIDE.md` instead would throw
+away the one property the split exists for.
 
 ```text router
 [frontend/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/80-mode-frontend-and-layout-single.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install proxy ports skills setup-guard adr-convention agents-md agents-rules-frontend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md adr-land file:docs/agent-notes.md notes-proxy prov-frontend-single provenance report-frontend-single verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=proxy id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-frontend-single id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md id=adr-land path=docs/agent-notes.md id=notes-proxy id=prov-frontend-single id=provenance id=report-frontend-single id=verify
 
 [frontend/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md guide/parts/120-mode-frontend-and-layout-monorepo.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app proxy-workspace ports skills setup-guard adr-convention agents-md agents-rules-frontend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0004-frontend-workspace.md adr-land file:docs/agent-notes.md notes-proxy-app notes-workspace prov-frontend-monorepo provenance report-frontend-monorepo verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=workspace-skeleton id=workspace-app id=proxy-workspace id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-frontend-monorepo id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md path=.vite-plus-inherited-adrs/0004-frontend-workspace.md id=adr-land path=docs/agent-notes.md id=notes-proxy-app id=notes-workspace id=prov-frontend-monorepo id=provenance id=report-frontend-monorepo id=verify
 
 [backend/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/30-mode-backend-and-layout-single.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/140-mode-backend-or-fullstack-and-layout-single.md guide/parts/150-mode-backend.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install backend-skeleton backend-manifest backend-plugin ports skills setup-guard adr-convention agents-md agents-rules-backend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-backend prov-backend-single provenance report-backend-single verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=backend-skeleton id=backend-manifest id=backend-plugin id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-backend-single id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md path=.vite-plus-inherited-adrs/0003-server-foundation.md id=adr-land path=docs/agent-notes.md id=notes-server id=notes-merged-tsconfig id=notes-backend id=prov-backend-single id=provenance id=report-backend-single id=verify
 
 [backend/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md guide/parts/110-mode-backend-and-layout-monorepo.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/150-mode-backend.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-plugin ports skills setup-guard adr-convention agents-md agents-rules-backend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-backend-workspace.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-backend prov-backend-monorepo provenance report-backend-monorepo verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=workspace-skeleton id=workspace-plugin id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-backend-monorepo id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md path=.vite-plus-inherited-adrs/0003-server-foundation.md path=.vite-plus-inherited-adrs/0004-backend-workspace.md id=adr-land path=docs/agent-notes.md id=notes-server id=notes-workspace id=notes-workspace-root-server id=notes-backend id=prov-backend-monorepo id=provenance id=report-backend-monorepo id=verify
 
 [fullstack/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/40-mode-fullstack-and-layout-single.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/140-mode-backend-or-fullstack-and-layout-single.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install ssr-skeleton ssr-manifest ssr-plugin ports skills setup-guard adr-convention agents-md agents-rules-fullstack-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-ssr-shape.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-ssr prov-fullstack-single provenance report-fullstack-single verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=ssr-skeleton id=ssr-manifest id=ssr-plugin id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-fullstack-single id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md path=.vite-plus-inherited-adrs/0003-server-foundation.md path=.vite-plus-inherited-adrs/0004-ssr-shape.md id=adr-land path=docs/agent-notes.md id=notes-server id=notes-merged-tsconfig id=notes-ssr id=prov-fullstack-single id=provenance id=report-fullstack-single id=verify
 
 [fullstack/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md guide/parts/100-mode-fullstack-and-layout-monorepo.md guide/parts/130-mode-backend-or-fullstack.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app workspace-plugin proxy-workspace ports skills setup-guard adr-convention agents-md agents-rules-fullstack-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-split-shape.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-proxy-split prov-fullstack-monorepo provenance report-fullstack-monorepo verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=workspace-skeleton id=workspace-app id=workspace-plugin id=proxy-workspace id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-fullstack-monorepo id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md path=.vite-plus-inherited-adrs/0003-server-foundation.md path=.vite-plus-inherited-adrs/0004-split-shape.md id=adr-land path=docs/agent-notes.md id=notes-server id=notes-workspace id=notes-workspace-root-server id=notes-proxy-split id=prov-fullstack-monorepo id=provenance id=report-fullstack-monorepo id=verify
 
-unrun tnb:yes: fetch: guide/parts/20-tnb-yes.md; steps: manifest-tnb (after manifest)
-setup:yes: fetch: guide/parts/90-setup-yes.md; steps: setup-flow (after setup-guard)
+unrun tnb:yes: fetch: guide/parts/20-tnb-yes.md; steps: id=manifest-tnb (after id=manifest)
+setup:yes: fetch: guide/parts/90-setup-yes.md; steps: id=setup-flow (after id=setup-guard)
 ```
 
 What each row builds, in one line:
@@ -3733,12 +3734,16 @@ if [ "${#conflicts[@]}" -gt 0 ]; then
   exit 1
 fi
 
+# What lands, by content hash: the provenance step reads this list into the record, which is what
+# lets verification re-read the files after this staging directory is gone.
+: > .vite-plus-adr-landed
 landed=0
 for file in "$stage"/*.md; do
   name=$(basename "$file")
   cp "$file" "$adr_dir/$name"
   # Prove the landing instead of trusting the copy: byte-identical, at the resolved directory.
   cmp -s "$file" "$adr_dir/$name" || { echo "$adr_dir/$name does not match the inherited document $file" >&2; exit 1; }
+  printf '%s  %s\n' "$(sha256sum "$adr_dir/$name" | cut -d' ' -f1)" "$name" >> .vite-plus-adr-landed
   landed=$((landed + 1))
 done
 
@@ -3786,9 +3791,9 @@ catch it; an entry that cannot answer that second question is a fact to delete, 
   `docs/provenance.md` records (`^7.0.2` when this guide's own default was answered) — read it
   there rather than assuming it here.
 - If this project uses the TypeScript 6 API bridge (`typescript-native-bridge`, needed by
-  `vue-tsc` and friends), `tsc --version` prints the classic API's version (6.0.3 for the bridge
-  this guide pins) while the package version carries `-bridge…`. Never assert the TypeScript
-  version from that string; check the resolved package instead.
+  `vue-tsc` and friends), `tsc --version` prints the classic API's version — the bridge reports its
+  own, so that string is never the TypeScript version — while the package version carries
+  `-bridge…`. Check the resolved package, and read the pin from `docs/provenance.md`.
 - `vite-plus` is a devDependency, never a global install. `vp env`, `vp upgrade` and
   `vp implode` do not exist in a project-local setup — the tool's own instructions suggest
   `vp env doctor`, which is one of them.
@@ -4319,6 +4324,10 @@ choice_rows=$(cat .vite-plus-prov-choice)
 scaffold_line=$(cat .vite-plus-prov-scaffold)
 server_step=$(cat .vite-plus-prov-server)
 verify_step=$(cat .vite-plus-prov-verify)
+# The ADRs that landed, by content hash, as the landing step recorded them. The record is where this
+# survives the staging directory, and verification reads it back to prove the files did not move.
+[ -s .vite-plus-adr-landed ] || { echo "adr-land recorded nothing about what it installed" >&2; exit 1; }
+adr_rows=$(awk '{ printf "| `%s` | `%s` |\n", $2, $1 }' .vite-plus-adr-landed)
 
 # The setup decision point's record, and — in the deferred branch — the assumption it leaves
 # behind. The paragraph is what makes the landing point above revisitable: it names the documents
@@ -4391,6 +4400,16 @@ project. Read documentation for the versions above, not for \`latest\`.
 The skill names are resolved from the upstream manifest at initialization time rather than
 frozen in the guide, so an upstream rename or promotion is picked up instead of pinned.
 Installed content lives in \`.agents/skills/\`.
+
+## Inherited ADRs as installed
+
+The landing step read these back out of the directory it copied them into, then deleted its staging
+directory: the names and content hashes of the documents that actually landed, so a later reader (or
+the verification step) can tell the shipped text from a hand edit.
+
+| File | sha256 |
+| --- | --- |
+${adr_rows}
 
 ## What to re-check when upstream moves
 
@@ -4580,6 +4599,79 @@ case "$GUIDE_MODE/$GUIDE_LAYOUT" in
   *) echo "no verification is implemented for profile '$GUIDE_MODE/$GUIDE_LAYOUT'" >&2; exit 1 ;;
 esac
 
+step "the documents this run wrote"
+# Phase 5's half of the deliverable, asserted here from outside the way a reader would check it: the
+# record, the constraints, the landed ADRs, the traps, and the skills lockfile. Without this section
+# a run could drop Phase 5 and still print "verification passed" — the code half of the
+# initialization would be proven and the documents half assumed.
+#
+# It runs first, before `vp fmt` touches the project: the ADR check below compares the landed
+# documents against the hashes the landing step recorded, and a formatter that normalises Markdown
+# (measured: `vp fmt` rewrites `*is*` to `_is_` inside these documents) would both hide a hand edit
+# and flag its own rewrite. What is asserted is the state this run produced, before its own tools
+# normalise it further.
+[ -f docs/provenance.md ] || { echo "docs/provenance.md is missing — Phase 5 wrote no record" >&2; exit 1; }
+grep -qE '^\| Inherited ADR landing point \| `[^`]+/` — .+ \|$' docs/provenance.md || {
+  echo "docs/provenance.md records no ADR landing point, or not where it came from" >&2
+  exit 1
+}
+adr_dir=$(sed -n 's/^| Inherited ADR landing point | `\(.*\)\/` — .*$/\1/p' docs/provenance.md)
+[ -n "$adr_dir" ] || { echo "the recorded ADR landing point could not be read back" >&2; exit 1; }
+ok "docs/provenance.md records the landing point $adr_dir/ and its source"
+
+[ -f AGENTS.md ] || { echo "AGENTS.md is missing" >&2; exit 1; }
+grep -q '## Project constraints' AGENTS.md || { echo "AGENTS.md carries no '## Project constraints' section" >&2; exit 1; }
+grep -qF "\`$adr_dir/\`" AGENTS.md || { echo "AGENTS.md's closing line does not name the recorded ADR directory \`$adr_dir/\`" >&2; exit 1; }
+ok "the constraints are in AGENTS.md, whose closing line names $adr_dir/"
+
+[ -d "$adr_dir" ] || { echo "the recorded ADR landing point $adr_dir/ does not exist" >&2; exit 1; }
+# The names and hashes come from the record, which the landing step filled in before it deleted its
+# staging directory: "the document is the one that landed" is re-checked here rather than trusted,
+# and the check needs no second copy of the name list.
+rows=$(sed -n 's/^| `\([^`]*\.md\)` | `\([0-9a-f]\{64\}\)` |$/\1 \2/p' docs/provenance.md)
+[ -n "$rows" ] || {
+  echo "docs/provenance.md records no landed ADR with a hash: the landing point cannot be checked" >&2
+  exit 1
+}
+landed=0
+while read -r name hash; do
+  [ -n "$name" ] || continue
+  [ -f "$adr_dir/$name" ] || { echo "$adr_dir/$name is recorded as landed but is not there" >&2; exit 1; }
+  got=$(sha256sum "$adr_dir/$name" | cut -d' ' -f1)
+  [ "$got" = "$hash" ] || { echo "$adr_dir/$name is not the document that landed (recorded $hash, now $got)" >&2; exit 1; }
+  landed=$((landed + 1))
+done <<< "$rows"
+[ "$landed" -gt 0 ] || { echo "the record lists no inherited ADR" >&2; exit 1; }
+ok "$landed inherited ADRs are at $adr_dir/, each still the bytes that landed"
+
+[ -f docs/agent-notes.md ] || { echo "docs/agent-notes.md is missing" >&2; exit 1; }
+grep -q '^# Agent notes — known traps and version facts' docs/agent-notes.md || {
+  echo "docs/agent-notes.md is not the shipped traps document: its header is missing" >&2
+  exit 1
+}
+grep -q '^## Two engines, one green light' docs/agent-notes.md || {
+  echo "docs/agent-notes.md carries no traps section — an append-created shell looks like this" >&2
+  exit 1
+}
+ok "docs/agent-notes.md is the shipped document, traps included"
+
+installed_skills=$(node --input-type=module - <<'NODE'
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+const locked = Object.keys(JSON.parse(readFileSync("skills-lock.json", "utf8")).skills).sort();
+const dirs = existsSync(".agents/skills") ? readdirSync(".agents/skills") : [];
+const installed = dirs.filter((name) => existsSync(`.agents/skills/${name}/SKILL.md`)).sort();
+const missing = locked.filter((name) => !installed.includes(name));
+const extra = installed.filter((name) => !locked.includes(name));
+if (missing.length || extra.length) {
+  console.error(`skills-lock.json and .agents/skills disagree: locked but not installed [${missing}], installed but not locked [${extra}]`);
+  process.exit(1);
+}
+if (installed.length === 0) { console.error("no skill is installed under .agents/skills/"); process.exit(1); }
+process.stdout.write(String(installed.length));
+NODE
+)
+ok "$installed_skills skills are installed, and skills-lock.json names exactly those"
+
 step "format"
 $VP fmt
 
@@ -4711,67 +4803,6 @@ step "static check after the build"
 # the root's `dist/`, the app's `apps/website/dist` and the placeholder's `packages/utils/dist`
 # alike.
 $VP check
-
-step "the documents this run wrote"
-# Phase 5's half of the deliverable, asserted here from outside the way a reader would check it: the
-# record, the constraints, the landed ADRs, the traps, and the skills lockfile. Without this section
-# a run could drop Phase 5 and still print "verification passed" — the code half of the
-# initialization would be proven and the documents half assumed.
-[ -f docs/provenance.md ] || { echo "docs/provenance.md is missing — Phase 5 wrote no record" >&2; exit 1; }
-grep -qE '^\| Inherited ADR landing point \| `[^`]+/` — .+ \|$' docs/provenance.md || {
-  echo "docs/provenance.md records no ADR landing point, or not where it came from" >&2
-  exit 1
-}
-adr_dir=$(sed -n 's/^| Inherited ADR landing point | `\(.*\)\/` — .*$/\1/p' docs/provenance.md)
-[ -n "$adr_dir" ] || { echo "the recorded ADR landing point could not be read back" >&2; exit 1; }
-ok "docs/provenance.md records the landing point $adr_dir/ and its source"
-
-[ -f AGENTS.md ] || { echo "AGENTS.md is missing" >&2; exit 1; }
-grep -q '## Project constraints' AGENTS.md || { echo "AGENTS.md carries no '## Project constraints' section" >&2; exit 1; }
-grep -qF "\`$adr_dir/\`" AGENTS.md || { echo "AGENTS.md's closing line does not name the recorded ADR directory \`$adr_dir/\`" >&2; exit 1; }
-ok "the constraints are in AGENTS.md, whose closing line names $adr_dir/"
-
-[ -d "$adr_dir" ] || { echo "the recorded ADR landing point $adr_dir/ does not exist" >&2; exit 1; }
-for expected in 0001-toolchain 0002-code-locality; do
-  ls "$adr_dir"/$expected*.md > /dev/null 2>&1 || {
-    echo "$adr_dir/ holds no $expected*.md: the inherited ADRs did not land where the record says" >&2
-    exit 1
-  }
-done
-for file in "$adr_dir"/*.md; do
-  [ -s "$file" ] || { echo "$file is empty" >&2; exit 1; }
-  head -1 "$file" | grep -q '^# ' || { echo "$file has no heading; it is not the document the guide shipped" >&2; exit 1; }
-done
-landed=$(find "$adr_dir" -maxdepth 1 -name '*.md' | wc -l)
-ok "$landed inherited ADRs are at $adr_dir/"
-
-[ -f docs/agent-notes.md ] || { echo "docs/agent-notes.md is missing" >&2; exit 1; }
-grep -q '^# Agent notes — known traps and version facts' docs/agent-notes.md || {
-  echo "docs/agent-notes.md is not the shipped traps document: its header is missing" >&2
-  exit 1
-}
-grep -q '^## Two engines, one green light' docs/agent-notes.md || {
-  echo "docs/agent-notes.md carries no traps section — an append-created shell looks like this" >&2
-  exit 1
-}
-ok "docs/agent-notes.md is the shipped document, traps included"
-
-installed_skills=$(node --input-type=module - <<'NODE'
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-const locked = Object.keys(JSON.parse(readFileSync("skills-lock.json", "utf8")).skills).sort();
-const dirs = existsSync(".agents/skills") ? readdirSync(".agents/skills") : [];
-const installed = dirs.filter((name) => existsSync(`.agents/skills/${name}/SKILL.md`)).sort();
-const missing = locked.filter((name) => !installed.includes(name));
-const extra = installed.filter((name) => !locked.includes(name));
-if (missing.length || extra.length) {
-  console.error(`skills-lock.json and .agents/skills disagree: locked but not installed [${missing}], installed but not locked [${extra}]`);
-  process.exit(1);
-}
-if (installed.length === 0) { console.error("no skill is installed under .agents/skills/"); process.exit(1); }
-process.stdout.write(String(installed.length));
-NODE
-)
-ok "$installed_skills skills are installed, and skills-lock.json names exactly those"
 
 step "tests"
 if node -e 'process.exit(require("./package.json").scripts?.test ? 0 : 1)'; then

@@ -23,7 +23,7 @@
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const GUIDE = join(REPO, "GUIDE.md");
@@ -113,9 +113,7 @@ export function checkFragments() {
   return failures;
 }
 
-export { FRAGMENTS };
-
-if (process.argv[1] && process.argv[1].endsWith("fragments.mjs")) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const failures = checkFragments();
   if (failures.length) {
     for (const failure of failures) console.error(`fragments: ${failure}`);

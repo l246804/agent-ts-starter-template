@@ -30,7 +30,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { parseInfo, scanFences, whenMatches } from "./extract.mjs";
+import { markerLabel, parseInfo, scanFences, whenMatches } from "./extract.mjs";
 import { ACCEPTED, shapeOf } from "./lib/shape.mjs";
 import { discoverProfiles } from "./lib/profiles.mjs";
 
@@ -49,12 +49,18 @@ const fail = (message) => {
 };
 
 /** Every guide: marker in GUIDE.md, in document order, with the 分片 each one belongs to. */
-function guideBlocks() {
+function guideBlocks(text) {
   const blocks = [];
-  for (const fence of scanFences(readFileSync(GUIDE, "utf8"))) {
+  for (const fence of scanFences(text)) {
     const { kind, attrs } = parseInfo(fence.info);
     if (!kind) continue;
-    blocks.push({ kind, id: attrs.id ?? attrs.path, gate: attrs.when ?? null, part: attrs.when || CORE });
+    blocks.push({
+      kind,
+      id: attrs.id ?? attrs.path,
+      label: markerLabel(kind, attrs),
+      gate: attrs.when ?? null,
+      part: attrs.when || CORE,
+    });
   }
   return blocks;
 }
@@ -63,21 +69,21 @@ function guideBlocks() {
 const planFor = (blocks, answers) =>
   blocks.filter((block) => block.gate === null || whenMatches(block.gate, answers));
 
-/** The 分片 a plan takes, in the order their text first appears. */
+/** The 分片 a plan takes, in the order their text first appears (the 索引 is always first). */
 function partsOf(plan, manifest) {
   const first = new Map();
   plan.forEach((block, index) => {
     if (!manifest.parts[block.part]) fail(`GUIDE.md has a step in 分片 \`${block.part}\`, which guide/parts.json does not name`);
     if (!first.has(block.part)) first.set(block.part, index);
   });
-  const gates = [...first.keys()].sort((a, b) => first.get(a) - first.get(b));
-  return [INDEX, ...gates.filter((id) => id !== INDEX)];
+  const partIds = [...first.keys()].sort((a, b) => first.get(a) - first.get(b));
+  return [INDEX, ...partIds];
 }
 
-/** What the table writes down for a plan: files to fetch, ids to run (`file:` marks a written file). */
+/** What the table writes down: the files to fetch, and each step's marker token, in order. */
 const asRow = (plan, parts, manifest) => ({
   fetch: parts.map((id) => manifest.parts[id].file),
-  steps: plan.map((block) => (block.kind === "file" ? `file:${block.id}` : block.id)),
+  steps: plan.map((block) => block.label),
 });
 
 /** The answer a gate needs to hold: `mode:backend|fullstack` -> { GUIDE_MODE: "backend" }. */
@@ -92,9 +98,16 @@ function answersFor(gate) {
 
 const shapeDetermined = (gate) => gate.split("&").every((clause) => ["mode", "layout"].includes(clause.slice(0, clause.indexOf(":"))));
 
+/**
+ * Does this gate hold under these answers? `whenMatches` is the extractor's own implementation and
+ * fails the process (loudly, naming the answer) on a clause no answer covers — which is the right
+ * failure for a gate the profile set cannot evaluate, so it is not caught here.
+ */
+const gateHolds = (gate, answers) => whenMatches(gate, answers);
+
 /** Parse the `text router` block: six rows and one line per answer-determined gate. */
-function parseRouter() {
-  const fence = scanFences(readFileSync(GUIDE, "utf8")).find((candidate) => candidate.info === ROUTER_INFO);
+function parseRouter(guide) {
+  const fence = scanFences(guide).find((candidate) => candidate.info === ROUTER_INFO);
   if (!fence) fail(`GUIDE.md carries no \`\`\`${ROUTER_INFO} block — the 路由表 cannot be read`);
   const rows = new Map();
   const rules = new Map();
@@ -143,7 +156,7 @@ function applyFields(target, text, where) {
     if (!field) fail(`${where}: cannot parse ${JSON.stringify(piece.trim())}`);
     if (field[1] === "fetch") target.fetch = field[2].trim().split(/\s+/).filter(Boolean);
     else {
-      const after = /\s*\(after ([a-z][a-z0-9-]*)\)$/.exec(field[2]);
+      const after = /\s*\(after ([^\s)]+)\)$/.exec(field[2]);
       target.steps = (after ? field[2].slice(0, after.index) : field[2]).trim().split(/\s+/).filter(Boolean);
       target.after = after ? after[1] : null;
     }
@@ -154,8 +167,9 @@ function applyFields(target, text, where) {
 export function checkRouter() {
   const failures = [];
   const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
-  const table = parseRouter();
-  const blocks = guideBlocks();
+  const guide = readFileSync(GUIDE, "utf8");
+  const table = parseRouter(guide);
+  const blocks = guideBlocks(guide);
   const profiles = discoverProfiles(REPO);
 
   // ---- the six rows are the six shapes, and each row is that shape's plan.
@@ -181,14 +195,7 @@ export function checkRouter() {
 
   // ---- every gate is either inside the rows or has a line of its own, and `unrun` says which.
   const gates = [...new Set(blocks.map((block) => block.gate).filter(Boolean))];
-  const matched = (gate) =>
-    profiles.some((profile) => {
-      try {
-        return whenMatches(gate, profile.answers);
-      } catch {
-        return false;
-      }
-    });
+  const matched = (gate) => profiles.some((profile) => gateHolds(gate, profile.answers));
   for (const gate of gates) {
     const entry = table.rules.get(gate);
     if (shapeDetermined(gate)) {
@@ -204,7 +211,7 @@ export function checkRouter() {
     if (entry.unrun !== !matched(gate)) continue;
     // The line has to produce that gate's plan out of any row it applies to.
     const gateBlocks = blocks.filter((block) => block.gate === gate);
-    const wantSteps = gateBlocks.map((block) => (block.kind === "file" ? `file:${block.id}` : block.id));
+    const wantSteps = gateBlocks.map((block) => block.label);
     if (wantSteps.join(" ") !== entry.steps.join(" ")) {
       failures.push(`the ${gate} line runs ${entry.steps.join(" ")} — the gate's steps are ${wantSteps.join(" ")}`);
     }
@@ -233,12 +240,16 @@ export function checkRouter() {
   for (const gate of table.rules.keys()) if (!gates.includes(gate)) failures.push(`the 路由表 has a line for \`when=${gate}\`, which GUIDE.md does not use`);
 
   // ---- the 占位子包 decision is not a gate: it changes what a step keeps, never which steps run,
-  // which is what lets six rows stand for the nine profiles.
-  const [mode, layout] = ACCEPTED[0].split("/");
-  const withYes = planFor(blocks, { ...ROW_ANSWERS, GUIDE_MODE: mode, GUIDE_LAYOUT: layout, GUIDE_PLACEHOLDER: "yes" }).map((b) => b.id);
-  const withNo = planFor(blocks, { ...ROW_ANSWERS, GUIDE_MODE: mode, GUIDE_LAYOUT: layout, GUIDE_PLACEHOLDER: "no" }).map((b) => b.id);
-  if (withYes.join(" ") !== withNo.join(" ")) {
-    failures.push("GUIDE_PLACEHOLDER changes which steps run; the 路由表's six rows would no longer cover the nine profiles");
+  // which is what lets six rows stand for the nine profiles. Checked on the monorepo shapes, which
+  // are where a `placeholder:` gate could appear — a probe on a single-layout shape would compare
+  // two plans that cannot differ, and a check that cannot fail is not a check.
+  for (const shape of ACCEPTED.filter((name) => name.endsWith("/monorepo"))) {
+    const [mode, layout] = shape.split("/");
+    const yes = planFor(blocks, { ...ROW_ANSWERS, GUIDE_MODE: mode, GUIDE_LAYOUT: layout, GUIDE_PLACEHOLDER: "yes" }).map((b) => b.id);
+    const no = planFor(blocks, { ...ROW_ANSWERS, GUIDE_MODE: mode, GUIDE_LAYOUT: layout, GUIDE_PLACEHOLDER: "no" }).map((b) => b.id);
+    if (yes.join(" ") !== no.join(" ")) {
+      failures.push(`GUIDE_PLACEHOLDER changes which steps run in ${shape}; the 路由表's six rows would no longer cover the nine profiles`);
+    }
   }
   const shapes = new Set(profiles.map((profile) => shapeOf(profile.answers).arm));
   for (const shape of ACCEPTED) if (!shapes.has(shape)) failures.push(`no profile runs ${shape}, so its row is not exercised by the matrix`);
@@ -248,7 +259,8 @@ export function checkRouter() {
 /** The block body, regenerated from GUIDE.md: what a maintainer pastes back after a guide edit. */
 function print() {
   const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
-  const blocks = guideBlocks();
+  const guide = readFileSync(GUIDE, "utf8");
+  const blocks = guideBlocks(guide);
   const profiles = discoverProfiles(REPO);
   const lines = [];
   for (const shape of ACCEPTED) {
@@ -259,18 +271,13 @@ function print() {
   }
   const gates = [...new Set(blocks.map((block) => block.gate).filter(Boolean))].filter((gate) => !shapeDetermined(gate));
   for (const gate of gates) {
-    const isMatched = profiles.some((profile) => {
-      try {
-        return whenMatches(gate, profile.answers);
-      } catch {
-        return false;
-      }
-    });
+    const isMatched = profiles.some((profile) => gateHolds(gate, profile.answers));
     const [mode, layout] = ACCEPTED[0].split("/");
     const plan = planFor(blocks, { ...ROW_ANSWERS, GUIDE_MODE: mode, GUIDE_LAYOUT: layout, ...answersFor(gate) });
     const first = plan.findIndex((block) => block.gate === gate);
-    const after = first > 0 ? plan[first - 1].id : "?";
-    const steps = plan.filter((block) => block.gate === gate).map((block) => (block.kind === "file" ? `file:${block.id}` : block.id));
+    if (first <= 0) fail(`the \`when=${gate}\` gate has no step before it in any plan: the 路由表 line needs an insertion point`);
+    const after = plan[first - 1].label;
+    const steps = plan.filter((block) => block.gate === gate).map((block) => block.label);
     const files = [...new Set(blocks.filter((block) => block.gate === gate).map((block) => manifest.parts[block.part].file))];
     lines.push(`${isMatched ? "" : "unrun "}${gate}: fetch: ${files.join(" ")}; steps: ${steps.join(" ")} (after ${after})`);
   }

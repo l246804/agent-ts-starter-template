@@ -25,38 +25,39 @@ and this table) and one file per `when=` gate. A run fetches the index and then 
 own answers select** — the other shapes' text is not read at all, rather than skimmed and skipped.
 
 The table below is the whole routing decision. Read the row for your `GUIDE_MODE`/`GUIDE_LAYOUT`,
-fetch exactly the files it names, and run exactly the steps it lists, in that order. Print that step
-list before you start: it is the receipt this delivery is checked against. If a file or a step is
-missing, **stop and report which one** — fetching the whole `GUIDE.md` instead would throw away the
-one property the split exists for.
+fetch exactly the files it names, and run exactly the steps it lists, in that order. Each entry is
+the token that finds that step in the text — `id=…` for a step, `path=…` for a document to write.
+Print that list before you start: it is the receipt this delivery is checked against. If a file or a
+step is missing, **stop and report which one** — fetching the whole `GUIDE.md` instead would throw
+away the one property the split exists for.
 
 ```text router
 [frontend/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/80-mode-frontend-and-layout-single.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install proxy ports skills setup-guard adr-convention agents-md agents-rules-frontend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md adr-land file:docs/agent-notes.md notes-proxy prov-frontend-single provenance report-frontend-single verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=proxy id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-frontend-single id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md id=adr-land path=docs/agent-notes.md id=notes-proxy id=prov-frontend-single id=provenance id=report-frontend-single id=verify
 
 [frontend/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md guide/parts/120-mode-frontend-and-layout-monorepo.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app proxy-workspace ports skills setup-guard adr-convention agents-md agents-rules-frontend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0004-frontend-workspace.md adr-land file:docs/agent-notes.md notes-proxy-app notes-workspace prov-frontend-monorepo provenance report-frontend-monorepo verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=workspace-skeleton id=workspace-app id=proxy-workspace id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-frontend-monorepo id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md path=.vite-plus-inherited-adrs/0004-frontend-workspace.md id=adr-land path=docs/agent-notes.md id=notes-proxy-app id=notes-workspace id=prov-frontend-monorepo id=provenance id=report-frontend-monorepo id=verify
 
 [backend/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/30-mode-backend-and-layout-single.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/140-mode-backend-or-fullstack-and-layout-single.md guide/parts/150-mode-backend.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install backend-skeleton backend-manifest backend-plugin ports skills setup-guard adr-convention agents-md agents-rules-backend-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-backend prov-backend-single provenance report-backend-single verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=backend-skeleton id=backend-manifest id=backend-plugin id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-backend-single id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md path=.vite-plus-inherited-adrs/0003-server-foundation.md id=adr-land path=docs/agent-notes.md id=notes-server id=notes-merged-tsconfig id=notes-backend id=prov-backend-single id=provenance id=report-backend-single id=verify
 
 [backend/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md guide/parts/110-mode-backend-and-layout-monorepo.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/150-mode-backend.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-plugin ports skills setup-guard adr-convention agents-md agents-rules-backend-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-backend-workspace.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-backend prov-backend-monorepo provenance report-backend-monorepo verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=workspace-skeleton id=workspace-plugin id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-backend-monorepo id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md path=.vite-plus-inherited-adrs/0003-server-foundation.md path=.vite-plus-inherited-adrs/0004-backend-workspace.md id=adr-land path=docs/agent-notes.md id=notes-server id=notes-workspace id=notes-workspace-root-server id=notes-backend id=prov-backend-monorepo id=provenance id=report-backend-monorepo id=verify
 
 [fullstack/single]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/40-mode-fullstack-and-layout-single.md guide/parts/130-mode-backend-or-fullstack.md guide/parts/140-mode-backend-or-fullstack-and-layout-single.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install ssr-skeleton ssr-manifest ssr-plugin ports skills setup-guard adr-convention agents-md agents-rules-fullstack-single agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-ssr-shape.md adr-land file:docs/agent-notes.md notes-server notes-merged-tsconfig notes-ssr prov-fullstack-single provenance report-fullstack-single verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=ssr-skeleton id=ssr-manifest id=ssr-plugin id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-fullstack-single id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md path=.vite-plus-inherited-adrs/0003-server-foundation.md path=.vite-plus-inherited-adrs/0004-ssr-shape.md id=adr-land path=docs/agent-notes.md id=notes-server id=notes-merged-tsconfig id=notes-ssr id=prov-fullstack-single id=provenance id=report-fullstack-single id=verify
 
 [fullstack/monorepo]
 fetch: guide/index.md guide/parts/10-core.md guide/parts/50-layout-monorepo.md guide/parts/60-mode-frontend-or-fullstack-and-layout-monorepo.md guide/parts/70-mode-backend-or-fullstack-and-layout-monorepo.md guide/parts/100-mode-fullstack-and-layout-monorepo.md guide/parts/130-mode-backend-or-fullstack.md
-steps: preflight profile-guard pins bootstrap manifest config-trim config-controls install workspace-skeleton workspace-app workspace-plugin proxy-workspace ports skills setup-guard adr-convention agents-md agents-rules-fullstack-monorepo agents-md-tail file:.vite-plus-inherited-adrs/0001-toolchain.md file:.vite-plus-inherited-adrs/0002-code-locality.md file:.vite-plus-inherited-adrs/0003-server-foundation.md file:.vite-plus-inherited-adrs/0004-split-shape.md adr-land file:docs/agent-notes.md notes-server notes-workspace notes-workspace-root-server notes-proxy-split prov-fullstack-monorepo provenance report-fullstack-monorepo verify
+steps: id=preflight id=profile-guard id=pins id=bootstrap id=manifest id=config-trim id=config-controls id=install id=workspace-skeleton id=workspace-app id=workspace-plugin id=proxy-workspace id=ports id=skills id=setup-guard id=adr-convention id=agents-md id=agents-rules-fullstack-monorepo id=agents-md-tail path=.vite-plus-inherited-adrs/0001-toolchain.md path=.vite-plus-inherited-adrs/0002-code-locality.md path=.vite-plus-inherited-adrs/0003-server-foundation.md path=.vite-plus-inherited-adrs/0004-split-shape.md id=adr-land path=docs/agent-notes.md id=notes-server id=notes-workspace id=notes-workspace-root-server id=notes-proxy-split id=prov-fullstack-monorepo id=provenance id=report-fullstack-monorepo id=verify
 
-unrun tnb:yes: fetch: guide/parts/20-tnb-yes.md; steps: manifest-tnb (after manifest)
-setup:yes: fetch: guide/parts/90-setup-yes.md; steps: setup-flow (after setup-guard)
+unrun tnb:yes: fetch: guide/parts/20-tnb-yes.md; steps: id=manifest-tnb (after id=manifest)
+setup:yes: fetch: guide/parts/90-setup-yes.md; steps: id=setup-flow (after id=setup-guard)
 ```
 
 What each row builds, in one line:

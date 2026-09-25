@@ -34,17 +34,12 @@ Turn this empty directory into a project by following this guide.
 
 ## Working on the guide
 
-- `node e2e/coverage.mjs --self-check` — the offline gate: the shipped-text table, the profile set, the
-  guide's two views (the parts glued back must equal `GUIDE.md`), the routing table against the plan,
-  and the repeated fragments.
-- `node e2e/guide-parts.mjs --write` — re-cut the parts after **any** edit of `GUIDE.md` (it never
-  writes `GUIDE.md`); `--check` proves the two views agree again.
-- `node e2e/router.mjs --print` — print the routing table body from `GUIDE.md`, to paste back into the
-  index after a step or a gate changes; `--check` proves each row is the plan its shape produces.
-- `bash e2e/run.sh --profile <name>` — one profile end to end; needs network and takes minutes.
-- `bash e2e/matrix.sh` — all nine profiles, then rewrites `docs/verification.md`. A change to the guide
-  is only proven when that pass has been run.
+`AGENTS.md` carries this repository's working constraints and the commands each of them needs;
+`e2e/README.md` says what the harness proves and what it deliberately does not; `CONTEXT.md` holds the
+vocabulary; `docs/adr/` the decisions (`0015` is the one behind the index-and-parts delivery). Two
+things are worth knowing before editing the guide, and both are commands no other document owns:
 
-`AGENTS.md` carries this repository's working constraints, `e2e/README.md` says what the harness proves
-and what it deliberately does not, `CONTEXT.md` holds the vocabulary, and `docs/adr/` the decisions —
-`0015` is the one behind the index-and-parts delivery.
+- After **any** edit of `GUIDE.md`, re-cut the parts and run the offline gate:
+  `node e2e/guide-parts.mjs --write && node e2e/coverage.mjs --self-check`.
+- After adding or re-gating a step, regenerate the routing table body with
+  `node e2e/router.mjs --print` and paste it back into the index's `text router` block.

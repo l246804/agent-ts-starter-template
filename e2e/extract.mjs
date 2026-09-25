@@ -220,6 +220,17 @@ function slug(text) {
     .replace(/^-|-$/g, "");
 }
 
+/**
+ * How a step is named to a reader who has the text but not the plan: the token that finds it in the
+ * marker. `id=…` for an exec/verify step, `path=…` for a document to write — the same attributes
+ * this module reads, so a receipt built from these labels and a plan built from the same markers
+ * cannot disagree about what a step is called. (The plan's own `id` for a file block is a slug of
+ * its path — an internal convenience for file names and the plan manifest, not a token in the text.)
+ */
+export function markerLabel(kind, attrs) {
+  return kind === "file" ? `path=${attrs.path}` : `id=${attrs.id}`;
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const guidePath = resolve(args.guide);
